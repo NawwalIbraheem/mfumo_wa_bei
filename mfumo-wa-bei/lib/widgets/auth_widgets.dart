@@ -65,31 +65,80 @@ class AuthLogoBadge extends StatelessWidget {
   }
 }
 
-class AuthTextField extends StatelessWidget {
+class AuthTextField extends StatefulWidget {
   const AuthTextField({
     super.key,
     required this.hintText,
     required this.icon,
+    this.controller,
     this.obscureText = false,
     this.suffixIcon,
     this.keyboardType,
+    this.validator,
+    this.textInputAction,
+    this.maxLength,
   });
 
   final String hintText;
   final IconData icon;
+  final TextEditingController? controller;
   final bool obscureText;
   final Widget? suffixIcon;
   final TextInputType? keyboardType;
+  final String? Function(String?)? validator;
+  final TextInputAction? textInputAction;
+  final int? maxLength;
+
+  @override
+  State<AuthTextField> createState() => _AuthTextFieldState();
+}
+
+class _AuthTextFieldState extends State<AuthTextField> {
+  late bool _isObscured;
+
+  @override
+  void initState() {
+    super.initState();
+    _isObscured = widget.obscureText;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      obscureText: obscureText,
-      keyboardType: keyboardType,
+    return TextFormField(
+      controller: widget.controller,
+      obscureText: _isObscured,
+      keyboardType: widget.keyboardType,
+      validator: widget.validator,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+      textInputAction: widget.textInputAction,
+      maxLength: widget.maxLength,
+      buildCounter:
+          (
+            context, {
+            required currentLength,
+            required isFocused,
+            required maxLength,
+          }) => null,
       decoration: InputDecoration(
-        hintText: hintText,
-        prefixIcon: Icon(icon, color: const Color(0xFF6B7280), size: 20),
-        suffixIcon: suffixIcon,
+        hintText: widget.hintText,
+        prefixIcon: Icon(widget.icon, color: const Color(0xFF6B7280), size: 20),
+        suffixIcon:
+            widget.obscureText
+                ? IconButton(
+                  onPressed: () {
+                    setState(() {
+                      _isObscured = !_isObscured;
+                    });
+                  },
+                  icon: Icon(
+                    _isObscured
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                    size: 20,
+                    color: const Color(0xFF6B7280),
+                  ),
+                )
+                : widget.suffixIcon,
       ),
     );
   }
