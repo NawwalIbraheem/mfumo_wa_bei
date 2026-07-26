@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../screens/forgot_password_page.dart';
 import '../screens/register_page.dart';
+import '../screens/welcome_page.dart';
 import '../utils/auth_validators.dart';
 import '../widgets/auth_widgets.dart';
 
@@ -57,6 +58,12 @@ class _LoginPageState extends State<LoginPage> {
         SnackBar(
           content: Text('Karibu $fullName. Umeingia kwa mafanikio.'),
         ),
+      );
+
+      Navigator.pushReplacementNamed(
+        context,
+        WelcomePage.routeName,
+        arguments: user,
       );
     } on ApiException catch (error) {
       if (!mounted) {

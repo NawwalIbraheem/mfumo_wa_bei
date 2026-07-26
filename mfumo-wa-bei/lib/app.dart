@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'screens/forgot_password_page.dart';
 import 'screens/login_page.dart';
 import 'screens/register_page.dart';
+import 'screens/welcome_page.dart';
 
 class MfumoWaBeiApp extends StatelessWidget {
   const MfumoWaBeiApp({super.key});
@@ -64,7 +65,9 @@ class MfumoWaBeiApp extends StatelessWidget {
         LoginPage.routeName: (context) => const LoginPage(),
         RegisterPage.routeName: (context) => const RegisterPage(),
         ForgotPasswordPage.routeName: (context) => const ForgotPasswordPage(),
+        WelcomePage.routeName: (context) => const WelcomePage(),
       },
     );
   }
 }
+

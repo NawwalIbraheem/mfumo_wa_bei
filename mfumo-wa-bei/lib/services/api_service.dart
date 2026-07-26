@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:http/http.dart' as http;
 
@@ -22,13 +23,10 @@ class ApiService {
     required String email,
     required String password,
   }) async {
-    final response = await _post(
-      '/auth/login/',
-      {
-        'email': email,
-        'password': password,
-      },
-    );
+    final response = await _post('/auth/login', {
+      'email': email,
+      'password': password,
+    });
     return _extractData(response);
   }
 
@@ -39,28 +37,22 @@ class ApiService {
     required String password,
     required String passwordConfirmation,
   }) async {
-    final response = await _post(
-      '/auth/register/',
-      {
-        'full_name': fullName,
-        'phone_number': phoneNumber,
-        'email': email,
-        'password': password,
-        'password_confirmation': passwordConfirmation,
-      },
-    );
+    final response = await _post('/auth/register', {
+      'full_name': fullName,
+      'phone_number': phoneNumber,
+      'email': email,
+      'password': password,
+      'password_confirmation': passwordConfirmation,
+    });
     return _extractData(response);
   }
 
   Future<Map<String, dynamic>> requestPasswordReset({
     required String identifier,
   }) async {
-    final response = await _post(
-      '/auth/password-reset-request/',
-      {
-        'identifier': identifier,
-      },
-    );
+    final response = await _post('/auth/password-reset-request', {
+      'identifier': identifier,
+    });
     return _extractData(response);
   }
 
@@ -68,24 +60,50 @@ class ApiService {
     String path,
     Map<String, dynamic> body,
   ) async {
-    final response = await _client.post(
-      Uri.parse('${ApiConfig.baseUrl}$path'),
-      headers: const {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: jsonEncode(body),
-    );
+    late final http.Response response;
+    try {
+      response = await _client
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}$path'),
+            headers: const {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 20));
+    } on http.ClientException {
+      throw ApiException(
+        'Imeshindikana kuunganisha na seva. Hakikisha backend inaendeshwa kwenye ${ApiConfig.baseUrl}.',
+      );
+    } on TimeoutException {
+      throw ApiException('Ombi limechukua muda mrefu. Jaribu tena.');
+    }
 
-    final jsonBody = response.body.isEmpty
-        ? <String, dynamic>{}
-        : jsonDecode(response.body) as Map<String, dynamic>;
+    final jsonBody = _decodeResponseBody(response.body);
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return jsonBody;
     }
 
     throw ApiException(_readError(jsonBody));
+  }
+
+  Map<String, dynamic> _decodeResponseBody(String body) {
+    if (body.isEmpty) {
+      return <String, dynamic>{};
+    }
+
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+    } on FormatException {
+      throw ApiException('Seva imerudisha majibu yasiyo sahihi. Jaribu tena.');
+    }
+
+    throw ApiException('Seva imerudisha majibu yasiyo sahihi. Jaribu tena.');
   }
 
   Map<String, dynamic> _extractData(Map<String, dynamic> payload) {
