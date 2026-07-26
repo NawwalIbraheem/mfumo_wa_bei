@@ -38,13 +38,22 @@ class ApiService {
     required String passwordConfirmation,
   }) async {
     final response = await _post('/auth/register', {
+      'username': email,
       'full_name': fullName,
-      'phone_number': phoneNumber,
+      'phone_number': _normalizePhoneNumber(phoneNumber),
       'email': email,
       'password': password,
       'password_confirmation': passwordConfirmation,
     });
     return _extractData(response);
+  }
+
+  String _normalizePhoneNumber(String phoneNumber) {
+    final normalized = phoneNumber.trim().replaceAll(RegExp(r'\s+'), '');
+    if (normalized.startsWith('0') && normalized.length == 10) {
+      return '+255${normalized.substring(1)}';
+    }
+    return normalized;
   }
 
   Future<Map<String, dynamic>> requestPasswordReset({

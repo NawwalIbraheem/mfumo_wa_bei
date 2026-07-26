@@ -122,7 +122,6 @@ class _RegisterPageState extends State<RegisterPage> {
               keyboardType: TextInputType.phone,
               textInputAction: TextInputAction.next,
               validator: AuthValidators.phoneNumber,
-              maxLength: 10,
             ),
             const SizedBox(height: 14),
             AuthTextField(

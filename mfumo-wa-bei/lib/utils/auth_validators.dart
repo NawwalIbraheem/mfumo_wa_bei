@@ -1,10 +1,13 @@
 class AuthValidators {
-  static final RegExp _phonePattern = RegExp(r'^\d{10}$');
+  static final RegExp _localPhonePattern = RegExp(r'^0\d{9}$');
+  static final RegExp _internationalPhonePattern = RegExp(r'^\+255\d{9}$');
   static final RegExp _emailPattern = RegExp(
     r'^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$',
     caseSensitive: false,
   );
   static final RegExp _letterPattern = RegExp(r'[A-Za-z]');
+  static final RegExp _lowercasePattern = RegExp(r'[a-z]');
+  static final RegExp _uppercasePattern = RegExp(r'[A-Z]');
   static final RegExp _digitPattern = RegExp(r'\d');
 
   static String? required(String? value, String fieldName) {
@@ -37,8 +40,9 @@ class AuthValidators {
     }
 
     final normalized = value!.trim().replaceAll(RegExp(r'\s+'), '');
-    if (!_phonePattern.hasMatch(normalized)) {
-      return 'Weka namba ya simu sahihi yenye tarakimu 10.';
+    if (!_localPhonePattern.hasMatch(normalized) &&
+        !_internationalPhonePattern.hasMatch(normalized)) {
+      return 'Weka namba kama +255700000001 au 0700000001.';
     }
     return null;
   }
@@ -70,11 +74,13 @@ class AuthValidators {
     }
 
     final normalized = value!.trim();
-    if (_emailPattern.hasMatch(normalized) || _phonePattern.hasMatch(normalized)) {
+    if (_emailPattern.hasMatch(normalized) ||
+        _localPhonePattern.hasMatch(normalized) ||
+        _internationalPhonePattern.hasMatch(normalized)) {
       return null;
     }
 
-    return 'Weka barua pepe sahihi au namba ya simu yenye tarakimu 10.';
+    return 'Weka barua pepe sahihi au namba kama +255700000001.';
   }
 
   static String? password(String? value) {
@@ -84,11 +90,13 @@ class AuthValidators {
     }
 
     final normalized = value!;
-    if (normalized.length < 8) {
-      return 'Nenosiri lazima liwe na angalau herufi 8.';
+    if (normalized.length < 10) {
+      return 'Nenosiri lazima liwe na angalau herufi 10.';
     }
-    if (!_letterPattern.hasMatch(normalized) || !_digitPattern.hasMatch(normalized)) {
-      return 'Nenosiri liwe na herufi na namba.';
+    if (!_lowercasePattern.hasMatch(normalized) ||
+        !_uppercasePattern.hasMatch(normalized) ||
+        !_digitPattern.hasMatch(normalized)) {
+      return 'Tumia herufi kubwa, ndogo na namba.';
     }
     return null;
   }

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -47,6 +49,27 @@ void main() {
           ),
         ),
       );
+    });
+
+    test('sends username and international phone number on register', () async {
+      late final Map<String, dynamic> requestBody;
+      final service = ApiService(
+        client: MockClient((request) async {
+          requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response('{"data":{"id":1}}', 201);
+        }),
+      );
+
+      await service.register(
+        fullName: 'Amina Hassan',
+        phoneNumber: '0712345678',
+        email: 'amina@example.com',
+        password: 'StrongPass123',
+        passwordConfirmation: 'StrongPass123',
+      );
+
+      expect(requestBody['username'], 'amina@example.com');
+      expect(requestBody['phone_number'], '+255712345678');
     });
 
     test('wraps connection failures in ApiException', () async {
