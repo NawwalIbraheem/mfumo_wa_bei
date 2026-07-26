@@ -3,10 +3,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'app.dart';
 
-/// Default entry point – loads the DEVELOPMENT environment.
-/// Use lib/main_prod.dart for production builds.
+/// Default entry point.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: '.env.dev');
+  await dotenv.load(fileName: '.env');
   runApp(const MfumoWaBeiApp());
 }

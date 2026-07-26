@@ -7,6 +7,6 @@ import 'app.dart';
 /// Build with: flutter build apk --release -t lib/main_prod.dart
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: '.env.production');
+  await dotenv.load(fileName: '.env');
   runApp(const MfumoWaBeiApp());
 }
