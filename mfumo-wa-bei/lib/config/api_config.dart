@@ -1,22 +1,23 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiConfig {
-  static const _configuredBaseUrl = String.fromEnvironment('API_BASE_URL');
+  /// The backend API base URL, loaded from the active .env file.
+  /// Falls back to a safe localhost URL if the variable is not set.
+  static String get baseUrl =>
+      dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:8000/api/v1';
 
-  static String get baseUrl {
-    if (_configuredBaseUrl.isNotEmpty) {
-      return _configuredBaseUrl;
-    }
+  /// The current app environment ("development" or "production").
+  static String get appEnv =>
+      dotenv.env['APP_ENV'] ?? 'development';
 
-    if (kIsWeb) {
-      return 'http://127.0.0.1:8000/api/v1';
-    }
+  /// Whether the app is running in production mode.
+  static bool get isProduction => appEnv == 'production';
 
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-        return 'http://10.0.2.2:8000/api/v1';
-      default:
-        return 'http://127.0.0.1:8000/api/v1';
-    }
-  }
+  /// Whether verbose debug logging is enabled.
+  static bool get debugEnabled =>
+      (dotenv.env['APP_DEBUG'] ?? 'true').toLowerCase() == 'true';
+
+  /// App display name (e.g. "Mfumo wa Bei" or "Mfumo wa Bei (Dev)").
+  static String get appName =>
+      dotenv.env['APP_NAME'] ?? 'Mfumo wa Bei';
 }
