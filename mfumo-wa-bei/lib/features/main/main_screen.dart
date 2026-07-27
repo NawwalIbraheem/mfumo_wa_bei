@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/layouts/app_shell.dart';
 import '../../core/network/api_service.dart';
+import '../../core/network/public_api_models.dart';
 import '../../core/widgets/mfumo_app_bar.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/home/home_screen.dart';
@@ -9,6 +10,7 @@ import '../../features/main/more_screen.dart';
 import '../../features/market_prices/market_prices_screen.dart';
 import '../../features/markets/markets_screen.dart';
 import '../../features/notifications/notifications_screen.dart';
+import '../../features/orders/orders_screen.dart';
 import '../../features/users/admin_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -28,56 +30,16 @@ class _MainScreenState extends State<MainScreen> {
   String searchQuery = '';
   int selectedTab = 0;
   Future<Map<String, dynamic>>? _meFuture;
+  late Future<PublicDashboardData> _dashboardFuture;
   Map<String, dynamic>? _routeUser;
   String? _token;
   bool _loadedRouteArgs = false;
 
-  final List<Map<String, dynamic>> markets = const [
-    {
-      'name': 'Soko Kuu la Morogoro',
-      'location': 'Katikati ya Mji, Morogoro',
-      'ricePrice': 2400,
-      'riceTrend': 'up',
-      'riceChange': '+2.5%',
-      'beanPrice': 3100,
-      'beanTrend': 'stable',
-      'beanChange': '0.0%',
-      'distance': '0.5 km',
-    },
-    {
-      'name': 'Soko la Sabasaba',
-      'location': 'Sabasaba, Morogoro',
-      'ricePrice': 2500,
-      'riceTrend': 'stable',
-      'riceChange': '0.0%',
-      'beanPrice': 3200,
-      'beanTrend': 'up',
-      'beanChange': '+4.1%',
-      'distance': '2.1 km',
-    },
-    {
-      'name': 'Soko la Kiwanja cha Ndege',
-      'location': 'Kiwanja cha Ndege, Morogoro',
-      'ricePrice': 2300,
-      'riceTrend': 'down',
-      'riceChange': '-1.2%',
-      'beanPrice': 3000,
-      'beanTrend': 'down',
-      'beanChange': '-2.0%',
-      'distance': '3.5 km',
-    },
-    {
-      'name': 'Soko la Mazimbu',
-      'location': 'Mazimbu Rd, Morogoro',
-      'ricePrice': 2450,
-      'riceTrend': 'up',
-      'riceChange': '+1.0%',
-      'beanPrice': 3150,
-      'beanTrend': 'up',
-      'beanChange': '+1.8%',
-      'distance': '4.2 km',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _dashboardFuture = _apiService.publicDashboard();
+  }
 
   @override
   void dispose() {
@@ -89,61 +51,70 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     _loadRouteArgs();
 
-    final filteredMarkets = markets.where((market) {
-      final query = searchQuery.toLowerCase();
-      return market['name'].toString().toLowerCase().contains(query) ||
-          market['location'].toString().toLowerCase().contains(query);
-    }).toList();
+    return FutureBuilder<PublicDashboardData>(
+      future: _dashboardFuture,
+      builder: (context, dashboardSnapshot) {
+        final dashboard = dashboardSnapshot.data;
+        final marketCards =
+            dashboard?.marketCards ?? const <Map<String, dynamic>>[];
+        final filteredMarkets = marketCards.where((market) {
+          final query = searchQuery.toLowerCase();
+          return market['name'].toString().toLowerCase().contains(query) ||
+              market['location'].toString().toLowerCase().contains(query);
+        }).toList();
 
-    if (_meFuture != null) {
-      return FutureBuilder<Map<String, dynamic>>(
-        future: _meFuture,
-        builder: (context, snapshot) {
-          final user = _readUser(snapshot.data) ?? _routeUser;
-          final permissions = _readPermissions(snapshot.data ?? user);
-          final role = _readRole(user);
-
-          if (snapshot.connectionState == ConnectionState.waiting &&
-              user == null) {
-            return const Scaffold(
-              backgroundColor: Color(0xFFF6F7F2),
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-
-          if (snapshot.hasError && _routeUser == null) {
-            return Scaffold(
-              backgroundColor: const Color(0xFFF6F7F2),
-              body: SafeArea(
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      snapshot.error.toString(),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }
-
-          return _buildScaffold(
-            user: user,
-            permissions: permissions,
-            role: role,
-            filteredMarkets: filteredMarkets,
+        if (dashboardSnapshot.connectionState == ConnectionState.waiting &&
+            dashboard == null) {
+          return const Scaffold(
+            backgroundColor: Color(0xFFF6F7F2),
+            body: Center(child: CircularProgressIndicator()),
           );
-        },
-      );
-    }
+        }
 
-    final permissions = _readPermissions(_routeUser);
-    return _buildScaffold(
-      user: _routeUser,
-      permissions: permissions,
-      role: _readRole(_routeUser),
-      filteredMarkets: filteredMarkets,
+        if (dashboardSnapshot.hasError && dashboard == null) {
+          return _buildDataError(dashboardSnapshot.error.toString());
+        }
+
+        if (_meFuture != null) {
+          return FutureBuilder<Map<String, dynamic>>(
+            future: _meFuture,
+            builder: (context, snapshot) {
+              final user = _readUser(snapshot.data) ?? _routeUser;
+              final permissions = _readPermissions(snapshot.data ?? user);
+              final role = _readRole(user);
+
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  user == null) {
+                return const Scaffold(
+                  backgroundColor: Color(0xFFF6F7F2),
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+
+              if (snapshot.hasError && _routeUser == null) {
+                return _buildDataError(snapshot.error.toString());
+              }
+
+              return _buildScaffold(
+                user: user,
+                permissions: permissions,
+                role: role,
+                filteredMarkets: filteredMarkets,
+                dashboard: dashboard!,
+              );
+            },
+          );
+        }
+
+        final permissions = _readPermissions(_routeUser);
+        return _buildScaffold(
+          user: _routeUser,
+          permissions: permissions,
+          role: _readRole(_routeUser),
+          filteredMarkets: filteredMarkets,
+          dashboard: dashboard!,
+        );
+      },
     );
   }
 
@@ -152,6 +123,7 @@ class _MainScreenState extends State<MainScreen> {
     required Set<String> permissions,
     required String role,
     required List<Map<String, dynamic>> filteredMarkets,
+    required PublicDashboardData dashboard,
   }) {
     final fullName = _displayName(user);
     final isAuthenticated = user != null;
@@ -160,6 +132,7 @@ class _MainScreenState extends State<MainScreen> {
         permissions.contains('commodity_prices.create');
     const canSeePriceTools = true;
     final canSeeNotifications = permissions.contains('auth.me');
+    final canSeeOrders = permissions.contains('orders.list');
     final canSeeAdmin =
         permissions.contains('users.list') ||
         permissions.contains('roles.list') ||
@@ -235,17 +208,18 @@ class _MainScreenState extends State<MainScreen> {
         ),
       ),
       if (canSeePriceTools)
-        const _MainNavigationItem(
-          destination: NavigationDestination(
+        _MainNavigationItem(
+          destination: const NavigationDestination(
             icon: Icon(Icons.show_chart),
             label: 'Bei',
           ),
-          screen: MarketPricesScreen(),
+          screen: MarketPricesScreen(prices: dashboard.latestCommodityPrices),
           moreItem: MoreNavigationItem(
             icon: Icons.show_chart,
             title: 'Bei',
             subtitle: 'Mwenendo wa bei za mchele na maharage',
-            builder: _buildMarketPricesScreen,
+            builder: (_) =>
+                MarketPricesScreen(prices: dashboard.latestCommodityPrices),
           ),
         ),
       if (canSeeNotifications)
@@ -262,18 +236,33 @@ class _MainScreenState extends State<MainScreen> {
             builder: _buildNotificationsScreen,
           ),
         ),
+      if (canSeeOrders)
+        _MainNavigationItem(
+          destination: const NavigationDestination(
+            icon: Icon(Icons.receipt_long_outlined),
+            label: 'Oda',
+          ),
+          screen: OrdersScreen(token: _token ?? ''),
+          moreItem: MoreNavigationItem(
+            icon: Icons.receipt_long_outlined,
+            title: 'Oda',
+            subtitle: 'Oda zinazoonekana kwa akaunti yako',
+            builder: (_) => OrdersScreen(token: _token ?? ''),
+          ),
+        ),
       if (canSeeAdmin)
         _MainNavigationItem(
           destination: const NavigationDestination(
             icon: Icon(Icons.admin_panel_settings_outlined),
             label: 'Admin',
           ),
-          screen: AdminScreen(permissions: permissions),
+          screen: AdminScreen(permissions: permissions, token: _token ?? ''),
           moreItem: MoreNavigationItem(
             icon: Icons.admin_panel_settings_outlined,
             title: 'Admin',
             subtitle: 'Watumiaji, roles na ruhusa',
-            builder: (_) => AdminScreen(permissions: permissions),
+            builder: (_) =>
+                AdminScreen(permissions: permissions, token: _token ?? ''),
           ),
         ),
     ];
@@ -332,7 +321,7 @@ class _MainScreenState extends State<MainScreen> {
       body: IndexedStack(index: safeSelectedTab, children: tabs),
       floatingActionButton: safeSelectedTab == 0 && canCreateMarketPrice
           ? FloatingActionButton.extended(
-              onPressed: _showReportPriceBottomSheet,
+              onPressed: () => _showReportPriceBottomSheet(dashboard),
               backgroundColor: const Color(0xFF0E7A3B),
               icon: const Icon(Icons.add_chart_outlined, color: Colors.white),
               label: const Text(
@@ -373,6 +362,35 @@ class _MainScreenState extends State<MainScreen> {
     if (_token != null && _token!.isNotEmpty) {
       _meFuture = _apiService.me(token: _token!);
     }
+  }
+
+  Widget _buildDataError(String message) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F7F2),
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(message, textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _dashboardFuture = _apiService.publicDashboard();
+                    });
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Jaribu tena'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Map<String, dynamic>? _readUser(Map<String, dynamic>? data) {
@@ -563,7 +581,26 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void _showReportPriceBottomSheet() {
+  void _showReportPriceBottomSheet(PublicDashboardData dashboard) {
+    final token = _token;
+    if (token == null || token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ingia kwanza ili kuripoti bei.')),
+      );
+      return;
+    }
+    if (dashboard.markets.isEmpty || dashboard.commodities.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Masoko au mazao hayajapatikana.')),
+      );
+      return;
+    }
+
+    final priceController = TextEditingController();
+    var selectedMarket = dashboard.markets.first;
+    var selectedCommodity = dashboard.commodities.first;
+    var isSubmitting = false;
+
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
@@ -571,58 +608,131 @@ class _MainScreenState extends State<MainScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          8,
-          20,
-          MediaQuery.of(context).viewInsets.bottom + 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Ripoti Bei Mpya',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Weka bei uliyoiona sokoni leo.',
-              style: TextStyle(color: Color(0xFF6B7280)),
-            ),
-            const SizedBox(height: 18),
-            DropdownButtonFormField<String>(
-              initialValue: 'Mchele',
-              decoration: const InputDecoration(labelText: 'Zao'),
-              items: const [
-                DropdownMenuItem(value: 'Mchele', child: Text('Mchele')),
-                DropdownMenuItem(value: 'Maharage', child: Text('Maharage')),
-              ],
-              onChanged: (_) {},
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Bei kwa kilo',
-                prefixText: 'TSh ',
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            8,
+            20,
+            MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Ripoti Bei Mpya',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              decoration: const InputDecoration(labelText: 'Jina la soko'),
-            ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: FilledButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Tuma Ripoti'),
+              const SizedBox(height: 6),
+              const Text(
+                'Weka bei uliyoiona sokoni leo.',
+                style: TextStyle(color: Color(0xFF6B7280)),
               ),
-            ),
-          ],
+              const SizedBox(height: 18),
+              DropdownButtonFormField<CommodityRecord>(
+                initialValue: selectedCommodity,
+                decoration: const InputDecoration(labelText: 'Zao'),
+                items: dashboard.commodities
+                    .map(
+                      (commodity) => DropdownMenuItem(
+                        value: commodity,
+                        child: Text(commodity.name),
+                      ),
+                    )
+                    .toList(),
+                onChanged: isSubmitting
+                    ? null
+                    : (value) => setSheetState(
+                        () => selectedCommodity = value ?? selectedCommodity,
+                      ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<MarketRecord>(
+                initialValue: selectedMarket,
+                decoration: const InputDecoration(labelText: 'Soko'),
+                items: dashboard.markets
+                    .map(
+                      (market) => DropdownMenuItem(
+                        value: market,
+                        child: Text(market.name),
+                      ),
+                    )
+                    .toList(),
+                onChanged: isSubmitting
+                    ? null
+                    : (value) => setSheetState(
+                        () => selectedMarket = value ?? selectedMarket,
+                      ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: priceController,
+                enabled: !isSubmitting,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Bei',
+                  prefixText: 'TSh ',
+                ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: FilledButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          final price = priceController.text.trim();
+                          if (price.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Weka bei kabla ya kutuma.'),
+                              ),
+                            );
+                            return;
+                          }
+                          setSheetState(() => isSubmitting = true);
+                          try {
+                            await _apiService.createMarketPrice(
+                              token: token,
+                              marketId: selectedMarket.id,
+                              commodityId: selectedCommodity.id,
+                              price: price,
+                              priceDate: DateTime.now()
+                                  .toIso8601String()
+                                  .split('T')
+                                  .first,
+                            );
+                            if (!mounted ||
+                                !context.mounted ||
+                                !sheetContext.mounted) {
+                              return;
+                            }
+                            Navigator.pop(sheetContext);
+                            setState(() {
+                              _dashboardFuture = _apiService.publicDashboard();
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Bei imetumwa kwa mafanikio.'),
+                              ),
+                            );
+                          } on ApiException catch (error) {
+                            if (!context.mounted) {
+                              return;
+                            }
+                            setSheetState(() => isSubmitting = false);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(error.message)),
+                            );
+                          }
+                        },
+                  child: Text(isSubmitting ? 'INATUMA...' : 'Tuma Ripoti'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -701,10 +811,6 @@ class _MainNavigationItem {
   final NavigationDestination destination;
   final Widget screen;
   final MoreNavigationItem moreItem;
-}
-
-Widget _buildMarketPricesScreen(BuildContext context) {
-  return const Scaffold(body: MarketPricesScreen());
 }
 
 Widget _buildNotificationsScreen(BuildContext context) {

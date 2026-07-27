@@ -2,13 +2,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mfumo_wa_bei/app.dart';
 
 void main() {
-  testWidgets('shows public market content with login entry', (
+  testWidgets('shows retry state when public API data cannot load', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(const MfumoWaBeiApp());
+    await tester.pumpAndSettle();
 
-    expect(find.text('Mfumo wa Bei'), findsOneWidget);
-    expect(find.text('Bei za mchele na maharage karibu nawe'), findsOneWidget);
-    expect(find.byTooltip('Ingia'), findsOneWidget);
+    expect(find.text('Jaribu tena'), findsOneWidget);
   });
 }

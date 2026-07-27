@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../core/network/public_api_models.dart';
+
 class MarketPricesScreen extends StatelessWidget {
-  const MarketPricesScreen({super.key});
+  const MarketPricesScreen({super.key, required this.prices});
+
+  final List<MarketPriceRecord> prices;
 
   @override
   Widget build(BuildContext context) {
@@ -16,26 +20,31 @@ class MarketPricesScreen extends StatelessWidget {
             ),
           ),
         ),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          sliver: SliverList.list(
-            children: const [
-              _PriceTrendCard(
-                commodity: 'Mchele',
-                currentPrice: 'TSh 2,400',
-                change: '+1.5%',
-                icon: Icons.rice_bowl_outlined,
-              ),
-              SizedBox(height: 12),
-              _PriceTrendCard(
-                commodity: 'Maharage',
-                currentPrice: 'TSh 3,100',
-                change: '0.0%',
-                icon: Icons.grain_outlined,
-              ),
-            ],
+        if (prices.isEmpty)
+          const SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(child: Text('Hakuna taarifa za bei kwa sasa.')),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverList.separated(
+              itemCount: prices.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final price = prices[index];
+                return _PriceTrendCard(
+                  commodity: price.commodityName,
+                  currentPrice: price.formattedPrice,
+                  change: price.formattedDate,
+                  market: price.marketName,
+                  icon: price.commodityName.toLowerCase().contains('mchele')
+                      ? Icons.rice_bowl_outlined
+                      : Icons.grain_outlined,
+                );
+              },
+            ),
           ),
-        ),
       ],
     );
   }
@@ -46,12 +55,14 @@ class _PriceTrendCard extends StatelessWidget {
     required this.commodity,
     required this.currentPrice,
     required this.change,
+    required this.market,
     required this.icon,
   });
 
   final String commodity;
   final String currentPrice;
   final String change;
+  final String market;
   final IconData icon;
 
   @override
@@ -93,6 +104,8 @@ class _PriceTrendCard extends StatelessWidget {
             currentPrice,
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
           ),
+          const SizedBox(height: 4),
+          Text(market, style: const TextStyle(color: Color(0xFF6B7280))),
           const SizedBox(height: 16),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,

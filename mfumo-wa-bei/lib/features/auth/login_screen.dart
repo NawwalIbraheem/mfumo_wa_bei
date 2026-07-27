@@ -83,7 +83,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   String? _readToken(Map<String, dynamic> data) {
-    for (final key in ['access_token', 'token', 'auth_token']) {
+    for (final key in ['access', 'access_token', 'token', 'auth_token']) {
       final value = data[key];
       if (value is String && value.isNotEmpty) {
         return value;
