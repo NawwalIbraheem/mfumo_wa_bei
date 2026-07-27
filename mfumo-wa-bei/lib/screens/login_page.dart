@@ -52,7 +52,9 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       final user = data['user'] as Map<String, dynamic>?;
-      final fullName = user?['full_name']?.toString() ?? 'Mtumiaji';
+      final fullName = user?['full_name']?.toString() ??
+          '${user?['first_name'] ?? ''} ${user?['last_name'] ?? ''}'.trim();
+      final token = _readToken(data);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -63,7 +65,10 @@ class _LoginPageState extends State<LoginPage> {
       Navigator.pushReplacementNamed(
         context,
         WelcomePage.routeName,
-        arguments: user,
+        arguments: {
+          'user': user,
+          'token': token,
+        },
       );
     } on ApiException catch (error) {
       if (!mounted) {
@@ -79,6 +84,25 @@ class _LoginPageState extends State<LoginPage> {
         });
       }
     }
+  }
+
+  String? _readToken(Map<String, dynamic> data) {
+    for (final key in ['access_token', 'token', 'auth_token']) {
+      final value = data[key];
+      if (value is String && value.isNotEmpty) {
+        return value;
+      }
+    }
+
+    final authorization = data['authorization'];
+    if (authorization is Map<String, dynamic>) {
+      final value = authorization['token'];
+      if (value is String && value.isNotEmpty) {
+        return value;
+      }
+    }
+
+    return null;
   }
 
   @override

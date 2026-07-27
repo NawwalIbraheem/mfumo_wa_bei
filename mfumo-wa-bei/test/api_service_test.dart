@@ -51,6 +51,27 @@ void main() {
       );
     });
 
+    test('sends bearer token when requesting current user', () async {
+      late final String? authorizationHeader;
+      final service = ApiService(
+        client: MockClient((request) async {
+          authorizationHeader = request.headers['Authorization'];
+          return http.Response(
+            '{"data":{"user_id":"WZr2JsT5Kn","permissions":["auth.me"]}}',
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+
+      final data = await service.me(token: 'sample-token');
+
+      expect(authorizationHeader, 'Bearer sample-token');
+      expect(data['user_id'], 'WZr2JsT5Kn');
+      expect(data['permissions'], ['auth.me']);
+    });
+
+
     test('sends username and international phone number on register', () async {
       late final Map<String, dynamic> requestBody;
       final service = ApiService(

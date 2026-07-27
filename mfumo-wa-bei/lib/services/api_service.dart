@@ -30,6 +30,11 @@ class ApiService {
     return _extractData(response);
   }
 
+  Future<Map<String, dynamic>> me({required String token}) async {
+    final response = await _get('/auth/me', token: token);
+    return _extractData(response);
+  }
+
   Future<Map<String, dynamic>> register({
     required String fullName,
     required String phoneNumber,
@@ -79,6 +84,36 @@ class ApiService {
               'Accept': 'application/json',
             },
             body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 20));
+    } on http.ClientException {
+      throw ApiException(
+        'Imeshindikana kuunganisha na seva. Hakikisha backend inaendeshwa kwenye ${ApiConfig.baseUrl}.',
+      );
+    } on TimeoutException {
+      throw ApiException('Ombi limechukua muda mrefu. Jaribu tena.');
+    }
+
+    final jsonBody = _decodeResponseBody(response.body);
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return jsonBody;
+    }
+
+    throw ApiException(_readError(jsonBody));
+  }
+
+  Future<Map<String, dynamic>> _get(String path, {String? token}) async {
+    late final http.Response response;
+    try {
+      response = await _client
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}$path'),
+            headers: {
+              'Accept': 'application/json',
+              if (token != null && token.isNotEmpty)
+                'Authorization': 'Bearer $token',
+            },
           )
           .timeout(const Duration(seconds: 20));
     } on http.ClientException {
