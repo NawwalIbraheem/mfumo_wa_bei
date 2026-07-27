@@ -110,5 +110,19 @@ void main() {
         ),
       );
     });
+
+    test('requests password reset using documented endpoint', () async {
+      late final Uri requestUrl;
+      final service = ApiService(
+        client: MockClient((request) async {
+          requestUrl = request.url;
+          return http.Response('{"data":{"ok":true}}', 200);
+        }),
+      );
+
+      await service.requestPasswordReset(identifier: 'amina@example.com');
+
+      expect(requestUrl.path, endsWith('/auth/password/reset/request'));
+    });
   });
 }

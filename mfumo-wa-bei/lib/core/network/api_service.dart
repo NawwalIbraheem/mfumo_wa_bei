@@ -64,7 +64,7 @@ class ApiService {
   Future<Map<String, dynamic>> requestPasswordReset({
     required String identifier,
   }) async {
-    final response = await _post('/auth/password-reset-request', {
+    final response = await _post('/auth/password/reset/request', {
       'identifier': identifier,
     });
     return _extractData(response);

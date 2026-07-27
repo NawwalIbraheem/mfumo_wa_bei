@@ -154,17 +154,12 @@ class _MainScreenState extends State<MainScreen> {
     required List<Map<String, dynamic>> filteredMarkets,
   }) {
     final fullName = _displayName(user);
+    final isAuthenticated = user != null;
     final canCreateMarketPrice =
-        permissions.isEmpty ||
         permissions.contains('market_prices.create') ||
         permissions.contains('commodity_prices.create');
-    final canSeePriceTools =
-        permissions.isEmpty ||
-        permissions.contains('market_prices.list') ||
-        permissions.contains('commodity_prices.list') ||
-        permissions.contains('commodity_prices.history');
-    final canSeeNotifications =
-        permissions.isEmpty || permissions.contains('auth.me');
+    const canSeePriceTools = true;
+    final canSeeNotifications = permissions.contains('auth.me');
     final canSeeAdmin =
         permissions.contains('users.list') ||
         permissions.contains('roles.list') ||
@@ -302,7 +297,10 @@ class _MainScreenState extends State<MainScreen> {
         email: user?['email']?.toString() ?? 'Hakuna barua pepe',
         phoneNumber: _readPhoneNumber(user),
         role: role,
+        isAuthenticated: isAuthenticated,
         onLogout: () =>
+            Navigator.pushReplacementNamed(context, LoginScreen.routeName),
+        onLogin: () =>
             Navigator.pushReplacementNamed(context, LoginScreen.routeName),
       ),
     ];
@@ -319,8 +317,15 @@ class _MainScreenState extends State<MainScreen> {
         showLogo: true,
         actions: [
           IconButton(
-            onPressed: () => _showProfileDialog(user),
-            icon: const Icon(Icons.account_circle_outlined),
+            tooltip: isAuthenticated ? 'Akaunti' : 'Ingia',
+            onPressed: isAuthenticated
+                ? () => _showProfileDialog(user)
+                : () => Navigator.pushNamed(context, LoginScreen.routeName),
+            icon: Icon(
+              isAuthenticated
+                  ? Icons.account_circle_outlined
+                  : Icons.login_outlined,
+            ),
           ),
         ],
       ),

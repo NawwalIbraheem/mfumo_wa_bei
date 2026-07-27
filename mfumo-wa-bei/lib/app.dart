@@ -15,7 +15,7 @@ class MfumoWaBeiApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Mfumo wa Bei',
       theme: AppTheme.light,
-      initialRoute: LoginScreen.routeName,
+      initialRoute: MainScreen.routeName,
       routes: {
         LoginScreen.routeName: (context) => const LoginScreen(),
         RegisterScreen.routeName: (context) => const RegisterScreen(),

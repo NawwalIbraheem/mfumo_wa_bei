@@ -26,7 +26,9 @@ class MoreScreen extends StatelessWidget {
     required this.email,
     required this.phoneNumber,
     required this.role,
+    required this.isAuthenticated,
     required this.onLogout,
+    required this.onLogin,
   });
 
   final List<MoreNavigationItem> extraItems;
@@ -34,7 +36,9 @@ class MoreScreen extends StatelessWidget {
   final String email;
   final String phoneNumber;
   final String role;
+  final bool isAuthenticated;
   final VoidCallback onLogout;
+  final VoidCallback onLogin;
 
   @override
   Widget build(BuildContext context) {
@@ -64,27 +68,35 @@ class MoreScreen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
         ],
-        _MoreTile(
-          icon: Icons.person_outline,
-          title: 'Akaunti',
-          subtitle: 'Wasifu, mawasiliano na kutoka kwenye akaunti',
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => Scaffold(
-                  appBar: AppBar(title: const Text('Akaunti')),
-                  body: AccountScreen(
-                    name: name,
-                    email: email,
-                    phoneNumber: phoneNumber,
-                    role: role,
-                    onLogout: onLogout,
+        if (isAuthenticated)
+          _MoreTile(
+            icon: Icons.person_outline,
+            title: 'Akaunti',
+            subtitle: 'Wasifu, mawasiliano na kutoka kwenye akaunti',
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => Scaffold(
+                    appBar: AppBar(title: const Text('Akaunti')),
+                    body: AccountScreen(
+                      name: name,
+                      email: email,
+                      phoneNumber: phoneNumber,
+                      role: role,
+                      onLogout: onLogout,
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
-        ),
+              );
+            },
+          )
+        else
+          _MoreTile(
+            icon: Icons.login_outlined,
+            title: 'Ingia',
+            subtitle: 'Fungua akaunti au ingia ili kutumia vipengele binafsi',
+            onTap: onLogin,
+          ),
         const SizedBox(height: 10),
         _MoreTile(
           icon: Icons.settings_outlined,
