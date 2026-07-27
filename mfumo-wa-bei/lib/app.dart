@@ -4,7 +4,7 @@ import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/screens/forgot_password_screen.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/auth/presentation/screens/register_screen.dart';
-import 'features/home/presentation/screens/home_screen.dart';
+import 'features/main/presentation/screens/main_screen.dart';
 
 class MfumoWaBeiApp extends StatelessWidget {
   const MfumoWaBeiApp({super.key});
@@ -21,7 +21,7 @@ class MfumoWaBeiApp extends StatelessWidget {
         RegisterScreen.routeName: (context) => const RegisterScreen(),
         ForgotPasswordScreen.routeName: (context) =>
             const ForgotPasswordScreen(),
-        HomeScreen.routeName: (context) => const HomeScreen(),
+        MainScreen.routeName: (context) => const MainScreen(),
       },
     );
   }

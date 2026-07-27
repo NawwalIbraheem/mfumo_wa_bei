@@ -1,0 +1,660 @@
+import 'package:flutter/material.dart';
+
+import '../../../../core/layouts/app_shell.dart';
+import '../../../../core/network/api_service.dart';
+import '../../../../core/widgets/mfumo_app_bar.dart';
+import '../../../../features/auth/presentation/screens/login_screen.dart';
+import '../../../../features/home/presentation/screens/home_screen.dart';
+import '../../../../features/market_prices/presentation/screens/market_prices_screen.dart';
+import '../../../../features/markets/presentation/screens/markets_screen.dart';
+import '../../../../features/notifications/presentation/screens/notifications_screen.dart';
+import '../../../../features/users/presentation/screens/account_screen.dart';
+import '../../../../features/users/presentation/screens/admin_screen.dart';
+
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
+
+  static const routeName = '/main';
+
+  @override
+  State<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  final ApiService _apiService = ApiService();
+
+  String selectedCropFilter = 'Zote';
+  String searchQuery = '';
+  int selectedTab = 0;
+  Future<Map<String, dynamic>>? _meFuture;
+  Map<String, dynamic>? _routeUser;
+  String? _token;
+  bool _loadedRouteArgs = false;
+
+  final List<Map<String, dynamic>> markets = const [
+    {
+      'name': 'Soko Kuu la Morogoro',
+      'location': 'Katikati ya Mji, Morogoro',
+      'ricePrice': 2400,
+      'riceTrend': 'up',
+      'riceChange': '+2.5%',
+      'beanPrice': 3100,
+      'beanTrend': 'stable',
+      'beanChange': '0.0%',
+      'distance': '0.5 km',
+    },
+    {
+      'name': 'Soko la Sabasaba',
+      'location': 'Sabasaba, Morogoro',
+      'ricePrice': 2500,
+      'riceTrend': 'stable',
+      'riceChange': '0.0%',
+      'beanPrice': 3200,
+      'beanTrend': 'up',
+      'beanChange': '+4.1%',
+      'distance': '2.1 km',
+    },
+    {
+      'name': 'Soko la Kiwanja cha Ndege',
+      'location': 'Kiwanja cha Ndege, Morogoro',
+      'ricePrice': 2300,
+      'riceTrend': 'down',
+      'riceChange': '-1.2%',
+      'beanPrice': 3000,
+      'beanTrend': 'down',
+      'beanChange': '-2.0%',
+      'distance': '3.5 km',
+    },
+    {
+      'name': 'Soko la Mazimbu',
+      'location': 'Mazimbu Rd, Morogoro',
+      'ricePrice': 2450,
+      'riceTrend': 'up',
+      'riceChange': '+1.0%',
+      'beanPrice': 3150,
+      'beanTrend': 'up',
+      'beanChange': '+1.8%',
+      'distance': '4.2 km',
+    },
+  ];
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _loadRouteArgs();
+
+    final filteredMarkets = markets.where((market) {
+      final query = searchQuery.toLowerCase();
+      return market['name'].toString().toLowerCase().contains(query) ||
+          market['location'].toString().toLowerCase().contains(query);
+    }).toList();
+
+    if (_meFuture != null) {
+      return FutureBuilder<Map<String, dynamic>>(
+        future: _meFuture,
+        builder: (context, snapshot) {
+          final user = _readUser(snapshot.data) ?? _routeUser;
+          final permissions = _readPermissions(snapshot.data ?? user);
+          final role = _readRole(user);
+
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              user == null) {
+            return const Scaffold(
+              backgroundColor: Color(0xFFF6F7F2),
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+
+          if (snapshot.hasError && _routeUser == null) {
+            return Scaffold(
+              backgroundColor: const Color(0xFFF6F7F2),
+              body: SafeArea(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      snapshot.error.toString(),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+
+          return _buildScaffold(
+            user: user,
+            permissions: permissions,
+            role: role,
+            filteredMarkets: filteredMarkets,
+          );
+        },
+      );
+    }
+
+    final permissions = _readPermissions(_routeUser);
+    return _buildScaffold(
+      user: _routeUser,
+      permissions: permissions,
+      role: _readRole(_routeUser),
+      filteredMarkets: filteredMarkets,
+    );
+  }
+
+  Widget _buildScaffold({
+    required Map<String, dynamic>? user,
+    required Set<String> permissions,
+    required String role,
+    required List<Map<String, dynamic>> filteredMarkets,
+  }) {
+    final fullName = _displayName(user);
+    final canCreateMarketPrice =
+        permissions.isEmpty ||
+        permissions.contains('market_prices.create') ||
+        permissions.contains('commodity_prices.create');
+    final canSeePriceTools =
+        permissions.isEmpty ||
+        permissions.contains('market_prices.list') ||
+        permissions.contains('commodity_prices.list') ||
+        permissions.contains('commodity_prices.history');
+    final canSeeNotifications =
+        permissions.isEmpty || permissions.contains('auth.me');
+    final canSeeAdmin =
+        permissions.contains('users.list') ||
+        permissions.contains('roles.list') ||
+        permissions.contains('permissions.list');
+
+    final destinations = <NavigationDestination>[
+      const NavigationDestination(
+        icon: Icon(Icons.home_outlined),
+        selectedIcon: Icon(Icons.home),
+        label: 'Nyumbani',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.storefront_outlined),
+        selectedIcon: Icon(Icons.storefront),
+        label: 'Masoko',
+      ),
+      if (canSeePriceTools)
+        const NavigationDestination(icon: Icon(Icons.show_chart), label: 'Bei'),
+      if (canSeeNotifications)
+        const NavigationDestination(
+          icon: Icon(Icons.notifications_outlined),
+          label: 'Arifa',
+        ),
+      if (canSeeAdmin)
+        const NavigationDestination(
+          icon: Icon(Icons.admin_panel_settings_outlined),
+          label: 'Admin',
+        ),
+      const NavigationDestination(
+        icon: Icon(Icons.person_outline),
+        label: 'Akaunti',
+      ),
+    ];
+
+    final tabs = <Widget>[
+      HomeScreen(
+        role: role,
+        filteredMarkets: filteredMarkets,
+        permissions: permissions,
+        onMarketTap: _showMarketDetails,
+      ),
+      MarketsScreen(
+        markets: filteredMarkets,
+        selectedCropFilter: selectedCropFilter,
+        searchController: _searchController,
+        searchQuery: searchQuery,
+        onSearchChanged: (value) => setState(() => searchQuery = value),
+        onClearSearch: () {
+          setState(() {
+            _searchController.clear();
+            searchQuery = '';
+          });
+        },
+        onFilterChanged: (value) => setState(() => selectedCropFilter = value),
+        onMarketTap: _showMarketDetails,
+      ),
+      if (canSeePriceTools) const MarketPricesScreen(),
+      if (canSeeNotifications) const NotificationsScreen(),
+      if (canSeeAdmin) AdminScreen(permissions: permissions),
+      AccountScreen(
+        name: fullName,
+        email: user?['email']?.toString() ?? 'Hakuna barua pepe',
+        phoneNumber: _readPhoneNumber(user),
+        role: role,
+        onLogout: () =>
+            Navigator.pushReplacementNamed(context, LoginScreen.routeName),
+      ),
+    ];
+
+    final safeSelectedTab = selectedTab.clamp(0, tabs.length - 1);
+    if (safeSelectedTab != selectedTab) {
+      selectedTab = safeSelectedTab;
+    }
+
+    return AppShell(
+      appBar: MfumoAppBar(
+        title: 'Mfumo wa Bei',
+        subtitle: 'Karibu, $fullName',
+        showLogo: true,
+        actions: [
+          IconButton(
+            onPressed: () => _showProfileDialog(user),
+            icon: const Icon(Icons.account_circle_outlined),
+          ),
+        ],
+      ),
+      body: IndexedStack(index: safeSelectedTab, children: tabs),
+      floatingActionButton: safeSelectedTab == 0 && canCreateMarketPrice
+          ? FloatingActionButton.extended(
+              onPressed: _showReportPriceBottomSheet,
+              backgroundColor: const Color(0xFF0E7A3B),
+              icon: const Icon(Icons.add_chart_outlined, color: Colors.white),
+              label: const Text(
+                'Ripoti Bei',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            )
+          : null,
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: safeSelectedTab,
+        onDestinationSelected: (index) => setState(() => selectedTab = index),
+        backgroundColor: Colors.white,
+        indicatorColor: const Color(0xFFE8F5E9),
+        destinations: destinations,
+      ),
+    );
+  }
+
+  void _loadRouteArgs() {
+    if (_loadedRouteArgs) {
+      return;
+    }
+    _loadedRouteArgs = true;
+
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map<String, dynamic> &&
+        (args.containsKey('user') || args.containsKey('token'))) {
+      final user = args['user'];
+      _routeUser = user is Map<String, dynamic> ? user : null;
+      _token = args['token']?.toString();
+    } else if (args is Map<String, dynamic>) {
+      _routeUser = args;
+    }
+
+    if (_token != null && _token!.isNotEmpty) {
+      _meFuture = _apiService.me(token: _token!);
+    }
+  }
+
+  Map<String, dynamic>? _readUser(Map<String, dynamic>? data) {
+    if (data == null) {
+      return null;
+    }
+    final user = data['user'];
+    if (user is Map<String, dynamic>) {
+      return user;
+    }
+    if (data.containsKey('user_id') || data.containsKey('email')) {
+      return data;
+    }
+    return null;
+  }
+
+  Set<String> _readPermissions(Map<String, dynamic>? data) {
+    final user = _readUser(data) ?? data;
+    final permissions = user?['permissions'];
+    if (permissions is List) {
+      return permissions.map((permission) => permission.toString()).toSet();
+    }
+    return <String>{};
+  }
+
+  String _readRole(Map<String, dynamic>? user) {
+    final profile = user?['profile'];
+    if (profile is Map<String, dynamic>) {
+      return profile['role']?.toString() ?? 'user';
+    }
+    return user?['role']?.toString() ?? 'user';
+  }
+
+  String _readPhoneNumber(Map<String, dynamic>? user) {
+    final profile = user?['profile'];
+    final phoneNumber = profile is Map<String, dynamic>
+        ? profile['phone_number']?.toString()
+        : user?['phone_number']?.toString();
+    return phoneNumber ?? 'Hakuna namba ya simu';
+  }
+
+  String _displayName(Map<String, dynamic>? user) {
+    final fullName = user?['full_name']?.toString();
+    if (fullName != null && fullName.trim().isNotEmpty) {
+      return fullName;
+    }
+    final firstName = user?['first_name']?.toString() ?? '';
+    final lastName = user?['last_name']?.toString() ?? '';
+    final name = '$firstName $lastName'.trim();
+    return name.isEmpty ? 'Mtumiaji' : name;
+  }
+
+  void _showProfileDialog(Map<String, dynamic>? user) {
+    final name = _displayName(user);
+    final profile = user?['profile'];
+    final phoneNumber = profile is Map<String, dynamic>
+        ? profile['phone_number']?.toString()
+        : user?['phone_number']?.toString();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: const Color(0xFF0E7A3B),
+              child: Text(
+                _initials(name),
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(name, style: const TextStyle(fontSize: 18))),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _ProfileLine(
+              icon: Icons.email_outlined,
+              text: user?['email']?.toString() ?? 'Hakuna barua pepe',
+            ),
+            const SizedBox(height: 12),
+            _ProfileLine(
+              icon: Icons.phone_outlined,
+              text: phoneNumber ?? 'Hakuna namba ya simu',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Funga'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pushReplacementNamed(context, LoginScreen.routeName);
+            },
+            icon: const Icon(Icons.logout),
+            label: const Text('Ondoka'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMarketDetails(Map<String, dynamic> market) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              market['name'],
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(
+                  Icons.location_on_outlined,
+                  size: 18,
+                  color: Color(0xFF0E7A3B),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    market['location'],
+                    style: const TextStyle(color: Color(0xFF6B7280)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: _PricePanel(
+                    label: 'Mchele',
+                    price: market['ricePrice'],
+                    change: market['riceChange'],
+                    icon: Icons.rice_bowl_outlined,
+                    color: const Color(0xFF0E7A3B),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _PricePanel(
+                    label: 'Maharage',
+                    price: market['beanPrice'],
+                    change: market['beanChange'],
+                    icon: Icons.grain_outlined,
+                    color: const Color(0xFFB45309),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Mwenendo wa wiki 4',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: const [
+                _Bar(label: 'W1', height: 56),
+                _Bar(label: 'W2', height: 72),
+                _Bar(label: 'W3', height: 64),
+                _Bar(label: 'Leo', height: 92),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showReportPriceBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          8,
+          20,
+          MediaQuery.of(context).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Ripoti Bei Mpya',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Weka bei uliyoiona sokoni leo.',
+              style: TextStyle(color: Color(0xFF6B7280)),
+            ),
+            const SizedBox(height: 18),
+            DropdownButtonFormField<String>(
+              initialValue: 'Mchele',
+              decoration: const InputDecoration(labelText: 'Zao'),
+              items: const [
+                DropdownMenuItem(value: 'Mchele', child: Text('Mchele')),
+                DropdownMenuItem(value: 'Maharage', child: Text('Maharage')),
+              ],
+              onChanged: (_) {},
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Bei kwa kilo',
+                prefixText: 'TSh ',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              decoration: const InputDecoration(labelText: 'Jina la soko'),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Tuma Ripoti'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    return parts
+        .take(2)
+        .map((part) => part.isEmpty ? '' : part[0])
+        .join()
+        .toUpperCase();
+  }
+}
+
+class _PricePanel extends StatelessWidget {
+  const _PricePanel({
+    required this.label,
+    required this.price,
+    required this.change,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final int price;
+  final String change;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withAlpha(18),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(height: 10),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF6B7280),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(
+            'TSh $price',
+            style: TextStyle(
+              color: color,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          Text(
+            change,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Bar extends StatelessWidget {
+  const _Bar({required this.label, required this.height});
+
+  final String label;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          width: 46,
+          height: height,
+          decoration: BoxDecoration(
+            color: const Color(0xFF0E7A3B),
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileLine extends StatelessWidget {
+  const _ProfileLine({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: const Color(0xFF6B7280)),
+        const SizedBox(width: 10),
+        Expanded(child: Text(text)),
+      ],
+    );
+  }
+}
