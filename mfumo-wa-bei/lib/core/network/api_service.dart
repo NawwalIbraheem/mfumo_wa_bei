@@ -88,6 +88,51 @@ class ApiService {
     return _readList(response);
   }
 
+  Future<Map<String, dynamic>> protectedDetail({
+    required String token,
+    required String path,
+  }) async {
+    if (token.isEmpty) {
+      throw ApiException('Ingia tena ili kufungua ukurasa huu.');
+    }
+    final response = await _get(path, token: token);
+    return _extractData(response);
+  }
+
+  Future<Map<String, dynamic>> protectedCreate({
+    required String token,
+    required String path,
+    required Map<String, dynamic> body,
+  }) async {
+    if (token.isEmpty) {
+      throw ApiException('Ingia tena ili kufanya kitendo hiki.');
+    }
+    final response = await _post(path, body, token: token);
+    return _extractData(response);
+  }
+
+  Future<Map<String, dynamic>> protectedUpdate({
+    required String token,
+    required String path,
+    required Map<String, dynamic> body,
+  }) async {
+    if (token.isEmpty) {
+      throw ApiException('Ingia tena ili kufanya kitendo hiki.');
+    }
+    final response = await _patch(path, body, token: token);
+    return _extractData(response);
+  }
+
+  Future<void> protectedDelete({
+    required String token,
+    required String path,
+  }) async {
+    if (token.isEmpty) {
+      throw ApiException('Ingia tena ili kufanya kitendo hiki.');
+    }
+    await _delete(path, token: token);
+  }
+
   Future<List<Map<String, dynamic>>> publicList(String path) async {
     final response = await _get(_pathWithQuery(path, {'page_size': '100'}));
     return _readList(response);
@@ -213,6 +258,68 @@ class ApiService {
       return jsonBody;
     }
 
+    throw ApiException(_readError(jsonBody));
+  }
+
+  Future<Map<String, dynamic>> _patch(
+    String path,
+    Map<String, dynamic> body, {
+    String? token,
+  }) async {
+    late final http.Response response;
+    try {
+      response = await _client
+          .patch(
+            Uri.parse('${ApiConfig.baseUrl}$path'),
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              if (token != null && token.isNotEmpty)
+                'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 20));
+    } on http.ClientException {
+      throw ApiException(
+        'Imeshindikana kuunganisha na seva. Hakikisha backend inaendeshwa kwenye ${ApiConfig.baseUrl}.',
+      );
+    } on TimeoutException {
+      throw ApiException('Ombi limechukua muda mrefu. Jaribu tena.');
+    }
+
+    final jsonBody = _decodeResponseBody(response.body);
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return jsonBody;
+    }
+    throw ApiException(_readError(jsonBody));
+  }
+
+  Future<Map<String, dynamic>> _delete(String path, {String? token}) async {
+    late final http.Response response;
+    try {
+      response = await _client
+          .delete(
+            Uri.parse('${ApiConfig.baseUrl}$path'),
+            headers: {
+              'Accept': 'application/json',
+              if (token != null && token.isNotEmpty)
+                'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 20));
+    } on http.ClientException {
+      throw ApiException(
+        'Imeshindikana kuunganisha na seva. Hakikisha backend inaendeshwa kwenye ${ApiConfig.baseUrl}.',
+      );
+    } on TimeoutException {
+      throw ApiException('Ombi limechukua muda mrefu. Jaribu tena.');
+    }
+
+    final jsonBody = _decodeResponseBody(response.body);
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return jsonBody;
+    }
     throw ApiException(_readError(jsonBody));
   }
 

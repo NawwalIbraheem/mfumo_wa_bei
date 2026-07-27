@@ -179,5 +179,46 @@ void main() {
       expect(requestUrl.path, endsWith('/users'));
       expect(requestUrl.queryParameters['page_size'], '100');
     });
+
+    test('supports protected user create detail update and delete', () async {
+      final methods = <String>[];
+      final paths = <String>[];
+      final authHeaders = <String?>[];
+      final service = ApiService(
+        client: MockClient((request) async {
+          methods.add(request.method);
+          paths.add(request.url.path);
+          authHeaders.add(request.headers['Authorization']);
+          return http.Response(
+            request.method == 'DELETE'
+                ? '{"success":true}'
+                : '{"data":{"user_id":"u1","email":"admin@example.com"}}',
+            200,
+          );
+        }),
+      );
+
+      await service.protectedCreate(
+        token: 'admin-token',
+        path: '/users',
+        body: {'username': 'admin@example.com'},
+      );
+      await service.protectedDetail(token: 'admin-token', path: '/users/u1');
+      await service.protectedUpdate(
+        token: 'admin-token',
+        path: '/users/u1',
+        body: {'first_name': 'Admin'},
+      );
+      await service.protectedDelete(token: 'admin-token', path: '/users/u1');
+
+      expect(methods, ['POST', 'GET', 'PATCH', 'DELETE']);
+      expect(paths, [
+        endsWith('/users'),
+        endsWith('/users/u1'),
+        endsWith('/users/u1'),
+        endsWith('/users/u1'),
+      ]);
+      expect(authHeaders.toSet(), {'Bearer admin-token'});
+    });
   });
 }
