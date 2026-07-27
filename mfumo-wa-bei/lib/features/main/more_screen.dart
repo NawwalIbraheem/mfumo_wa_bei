@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../features/main/help_screen.dart';
+import '../../features/main/settings_screen.dart';
 import '../../features/users/account_screen.dart';
 
 class MoreNavigationItem {
@@ -50,9 +52,14 @@ class MoreScreen extends StatelessWidget {
             title: item.title,
             subtitle: item.subtitle,
             onTap: () {
-              Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: item.builder));
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => Scaffold(
+                    appBar: AppBar(title: Text(item.title)),
+                    body: item.builder(context),
+                  ),
+                ),
+              );
             },
           ),
           const SizedBox(height: 10),
@@ -79,16 +86,36 @@ class MoreScreen extends StatelessWidget {
           },
         ),
         const SizedBox(height: 10),
-        const _MoreTile(
+        _MoreTile(
           icon: Icons.settings_outlined,
           title: 'Mipangilio',
           subtitle: 'Mapendeleo ya mfumo',
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => Scaffold(
+                  appBar: AppBar(title: const Text('Mipangilio')),
+                  body: const SettingsScreen(),
+                ),
+              ),
+            );
+          },
         ),
         const SizedBox(height: 10),
-        const _MoreTile(
+        _MoreTile(
           icon: Icons.help_outline,
           title: 'Msaada',
           subtitle: 'Maswali na maelekezo ya kutumia mfumo',
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => Scaffold(
+                  appBar: AppBar(title: const Text('Msaada')),
+                  body: const HelpScreen(),
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
