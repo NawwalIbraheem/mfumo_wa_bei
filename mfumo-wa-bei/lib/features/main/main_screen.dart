@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/layouts/app_shell.dart';
-import '../../../../core/network/api_service.dart';
-import '../../../../core/widgets/mfumo_app_bar.dart';
-import '../../../../features/auth/presentation/screens/login_screen.dart';
-import '../../../../features/home/presentation/screens/home_screen.dart';
-import '../../../../features/market_prices/presentation/screens/market_prices_screen.dart';
-import '../../../../features/markets/presentation/screens/markets_screen.dart';
-import '../../../../features/main/presentation/screens/more_screen.dart';
-import '../../../../features/notifications/presentation/screens/notifications_screen.dart';
-import '../../../../features/users/presentation/screens/admin_screen.dart';
+import '../../core/layouts/app_shell.dart';
+import '../../core/network/api_service.dart';
+import '../../core/widgets/mfumo_app_bar.dart';
+import '../../features/auth/login_screen.dart';
+import '../../features/home/home_screen.dart';
+import '../../features/main/more_screen.dart';
+import '../../features/market_prices/market_prices_screen.dart';
+import '../../features/markets/markets_screen.dart';
+import '../../features/notifications/notifications_screen.dart';
+import '../../features/users/admin_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});

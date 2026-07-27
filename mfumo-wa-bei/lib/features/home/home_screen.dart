@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../features/markets/presentation/screens/markets_screen.dart';
+import '../../features/markets/markets_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({

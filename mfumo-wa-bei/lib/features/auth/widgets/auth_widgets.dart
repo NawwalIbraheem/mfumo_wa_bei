@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/layouts/auth_shell.dart';
+import '../../../core/layouts/auth_shell.dart';
 
 class AuthLayout extends StatelessWidget {
   const AuthLayout({

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/network/api_service.dart';
-import '../../../../features/main/presentation/screens/main_screen.dart';
-import '../../utils/auth_validators.dart';
-import '../widgets/auth_widgets.dart';
+import '../../core/network/api_service.dart';
+import '../../features/main/main_screen.dart';
+import 'utils/auth_validators.dart';
+import 'widgets/auth_widgets.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../features/users/presentation/screens/account_screen.dart';
+import '../../features/users/account_screen.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({

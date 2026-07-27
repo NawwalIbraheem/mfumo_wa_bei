@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'core/theme/app_theme.dart';
-import 'features/auth/presentation/screens/forgot_password_screen.dart';
-import 'features/auth/presentation/screens/login_screen.dart';
-import 'features/auth/presentation/screens/register_screen.dart';
-import 'features/main/presentation/screens/main_screen.dart';
+import 'features/auth/forgot_password_screen.dart';
+import 'features/auth/login_screen.dart';
+import 'features/auth/register_screen.dart';
+import 'features/main/main_screen.dart';
 
 class MfumoWaBeiApp extends StatelessWidget {
   const MfumoWaBeiApp({super.key});
