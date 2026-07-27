@@ -275,5 +275,99 @@ void main() {
         endsWith('/users/permissions/p1'),
       ]);
     });
+
+    test(
+      'supports commodity category list detail create update and delete',
+      () async {
+        final methods = <String>[];
+        final paths = <String>[];
+        final service = ApiService(
+          client: MockClient((request) async {
+            methods.add(request.method);
+            paths.add(request.url.path);
+            return http.Response(
+              request.method == 'GET' &&
+                      request.url.path.endsWith('/categories')
+                  ? '{"data":[{"category_id":"cat1","name":"Grains"}]}'
+                  : request.method == 'DELETE'
+                  ? '{"success":true}'
+                  : '{"data":{"category_id":"cat1","name":"Grains"}}',
+              200,
+            );
+          }),
+        );
+
+        await service.publicList('/commodities/categories');
+        await service.protectedCreate(
+          token: 'admin-token',
+          path: '/commodities/categories',
+          body: {'name': 'Grains'},
+        );
+        await service.publicDetail('/commodities/categories/cat1');
+        await service.protectedUpdate(
+          token: 'admin-token',
+          path: '/commodities/categories/cat1',
+          body: {'name': 'Cereals'},
+        );
+        await service.protectedDelete(
+          token: 'admin-token',
+          path: '/commodities/categories/cat1',
+        );
+
+        expect(methods, ['GET', 'POST', 'GET', 'PATCH', 'DELETE']);
+        expect(paths, [
+          endsWith('/commodities/categories'),
+          endsWith('/commodities/categories'),
+          endsWith('/commodities/categories/cat1'),
+          endsWith('/commodities/categories/cat1'),
+          endsWith('/commodities/categories/cat1'),
+        ]);
+      },
+    );
+
+    test('supports commodity unit list detail create update and delete', () async {
+      final methods = <String>[];
+      final paths = <String>[];
+      final service = ApiService(
+        client: MockClient((request) async {
+          methods.add(request.method);
+          paths.add(request.url.path);
+          return http.Response(
+            request.method == 'GET' && request.url.path.endsWith('/units')
+                ? '{"data":[{"unit_id":"unit1","name":"Kilogram","symbol":"kg"}]}'
+                : request.method == 'DELETE'
+                ? '{"success":true}'
+                : '{"data":{"unit_id":"unit1","name":"Kilogram","symbol":"kg"}}',
+            200,
+          );
+        }),
+      );
+
+      await service.publicList('/commodities/units');
+      await service.protectedCreate(
+        token: 'admin-token',
+        path: '/commodities/units',
+        body: {'name': 'Kilogram', 'symbol': 'kg'},
+      );
+      await service.publicDetail('/commodities/units/unit1');
+      await service.protectedUpdate(
+        token: 'admin-token',
+        path: '/commodities/units/unit1',
+        body: {'name': 'Kilogram', 'symbol': 'kg'},
+      );
+      await service.protectedDelete(
+        token: 'admin-token',
+        path: '/commodities/units/unit1',
+      );
+
+      expect(methods, ['GET', 'POST', 'GET', 'PATCH', 'DELETE']);
+      expect(paths, [
+        endsWith('/commodities/units'),
+        endsWith('/commodities/units'),
+        endsWith('/commodities/units/unit1'),
+        endsWith('/commodities/units/unit1'),
+        endsWith('/commodities/units/unit1'),
+      ]);
+    });
   });
 }

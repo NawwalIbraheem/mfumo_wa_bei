@@ -49,6 +49,36 @@ class AdminScreen extends StatelessWidget {
           type: _AdminModuleType.permissions,
         ),
       if (_hasAny([
+        'commodities.categories.create',
+        'commodities.categories.update',
+        'commodities.categories.delete',
+      ]))
+        const _AdminModule(
+          icon: Icons.category_outlined,
+          title: 'Categories',
+          subtitle: 'Manage commodity categories',
+          endpoint: '/commodities/categories',
+          protected: false,
+          primaryField: 'name',
+          secondaryFields: ['description'],
+          type: _AdminModuleType.categories,
+        ),
+      if (_hasAny([
+        'commodities.units.create',
+        'commodities.units.update',
+        'commodities.units.delete',
+      ]))
+        const _AdminModule(
+          icon: Icons.straighten_outlined,
+          title: 'Units',
+          subtitle: 'Manage commodity units',
+          endpoint: '/commodities/units',
+          protected: false,
+          primaryField: 'name',
+          secondaryFields: ['symbol', 'description'],
+          type: _AdminModuleType.units,
+        ),
+      if (_hasAny([
         'areas.create',
         'areas.bulk_import',
         'areas.update',
@@ -153,7 +183,7 @@ class _AdminModule {
   final _AdminModuleType type;
 }
 
-enum _AdminModuleType { generic, users, roles, permissions }
+enum _AdminModuleType { generic, users, roles, permissions, categories, units }
 
 class _AdminItem extends StatelessWidget {
   const _AdminItem({required this.module, required this.token});
@@ -299,6 +329,10 @@ class _AdminModuleScreenState extends State<_AdminModuleScreen> {
                       : widget.module.type == _AdminModuleType.permissions &&
                             widget.permissions.contains('permissions.read')
                       ? () => _openPermissionDetail(row)
+                      : widget.module.type == _AdminModuleType.categories
+                      ? () => _openCategoryDetail(row)
+                      : widget.module.type == _AdminModuleType.units
+                      ? () => _openUnitDetail(row)
                       : null,
                 );
               },
@@ -324,6 +358,22 @@ class _AdminModuleScreenState extends State<_AdminModuleScreen> {
         onPressed: _showCreateRole,
         icon: const Icon(Icons.add_moderator_outlined),
         label: const Text('Role'),
+      );
+    }
+    if (widget.module.type == _AdminModuleType.categories &&
+        widget.permissions.contains('commodities.categories.create')) {
+      return FloatingActionButton.extended(
+        onPressed: _showCreateCategory,
+        icon: const Icon(Icons.add_outlined),
+        label: const Text('Category'),
+      );
+    }
+    if (widget.module.type == _AdminModuleType.units &&
+        widget.permissions.contains('commodities.units.create')) {
+      return FloatingActionButton.extended(
+        onPressed: _showCreateUnit,
+        icon: const Icon(Icons.add_outlined),
+        label: const Text('Unit'),
       );
     }
     return null;
@@ -410,6 +460,80 @@ class _AdminModuleScreenState extends State<_AdminModuleScreen> {
         onSubmit: (body) => _apiService.protectedCreate(
           token: widget.token,
           path: '/users/roles',
+          body: body,
+        ),
+      ),
+    );
+    if (created == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _openCategoryDetail(Map<String, dynamic> row) async {
+    final categoryId = row['category_id']?.toString();
+    if (categoryId == null || categoryId.isEmpty) {
+      return;
+    }
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _CategoryDetailScreen(
+          token: widget.token,
+          categoryId: categoryId,
+          permissions: widget.permissions,
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _showCreateCategory() async {
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _CategoryFormSheet(
+        onSubmit: (body) => _apiService.protectedCreate(
+          token: widget.token,
+          path: '/commodities/categories',
+          body: body,
+        ),
+      ),
+    );
+    if (created == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _openUnitDetail(Map<String, dynamic> row) async {
+    final unitId = row['unit_id']?.toString();
+    if (unitId == null || unitId.isEmpty) {
+      return;
+    }
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _UnitDetailScreen(
+          token: widget.token,
+          unitId: unitId,
+          permissions: widget.permissions,
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _showCreateUnit() async {
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _UnitFormSheet(
+        onSubmit: (body) => _apiService.protectedCreate(
+          token: widget.token,
+          path: '/commodities/units',
           body: body,
         ),
       ),
@@ -1129,6 +1253,486 @@ class _PermissionDetailScreenState extends State<_PermissionDetailScreen> {
         },
       ),
     );
+  }
+}
+
+class _CategoryDetailScreen extends StatefulWidget {
+  const _CategoryDetailScreen({
+    required this.token,
+    required this.categoryId,
+    required this.permissions,
+  });
+
+  final String token;
+  final String categoryId;
+  final Set<String> permissions;
+
+  @override
+  State<_CategoryDetailScreen> createState() => _CategoryDetailScreenState();
+}
+
+class _CategoryDetailScreenState extends State<_CategoryDetailScreen> {
+  final ApiService _apiService = ApiService();
+  late Future<Map<String, dynamic>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<Map<String, dynamic>> _load() {
+    return _apiService.publicDetail(
+      '/commodities/categories/${widget.categoryId}',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Category')),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return _ErrorState(
+              message: snapshot.error.toString(),
+              onRetry: () => setState(() => _future = _load()),
+            );
+          }
+          final category = snapshot.data ?? const <String, dynamic>{};
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+            children: [
+              _InfoTile(label: 'Name', value: _readValue(category, 'name')),
+              _InfoTile(
+                label: 'Description',
+                value: _readValue(category, 'description', fallback: '-'),
+              ),
+              const SizedBox(height: 20),
+              if (widget.permissions.contains('commodities.categories.update'))
+                FilledButton.icon(
+                  onPressed: () => _edit(category),
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Edit category'),
+                ),
+              if (widget.permissions.contains(
+                'commodities.categories.delete',
+              )) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _delete,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Delete category'),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _edit(Map<String, dynamic> category) async {
+    final changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _CategoryFormSheet(
+        category: category,
+        onSubmit: (body) => _apiService.protectedUpdate(
+          token: widget.token,
+          path: '/commodities/categories/${widget.categoryId}',
+          body: body,
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _delete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete category?'),
+        content: const Text('This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+    try {
+      await _apiService.protectedDelete(
+        token: widget.token,
+        path: '/commodities/categories/${widget.categoryId}',
+      );
+      if (mounted) {
+        Navigator.of(context).pop(true);
+      }
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+}
+
+class _CategoryFormSheet extends StatefulWidget {
+  const _CategoryFormSheet({required this.onSubmit, this.category});
+
+  final Map<String, dynamic>? category;
+  final Future<Map<String, dynamic>> Function(Map<String, dynamic> body)
+  onSubmit;
+
+  @override
+  State<_CategoryFormSheet> createState() => _CategoryFormSheetState();
+}
+
+class _CategoryFormSheetState extends State<_CategoryFormSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late final TextEditingController _descriptionController;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final category = widget.category ?? const <String, dynamic>{};
+    _nameController = TextEditingController(text: _readValue(category, 'name'));
+    _descriptionController = TextEditingController(
+      text: _readValue(category, 'description'),
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        8,
+        20,
+        MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              widget.category == null ? 'Create category' : 'Edit category',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 16),
+            _sheetField(_nameController, 'Name', enabled: !_isSubmitting),
+            _sheetField(
+              _descriptionController,
+              'Description',
+              enabled: !_isSubmitting,
+              required: false,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: FilledButton(
+                onPressed: _isSubmitting ? null : _submit,
+                child: Text(_isSubmitting ? 'Saving...' : 'Save'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    setState(() => _isSubmitting = true);
+    try {
+      await widget.onSubmit({
+        'name': _nameController.text.trim(),
+        'description': _descriptionController.text.trim(),
+      });
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+}
+
+class _UnitDetailScreen extends StatefulWidget {
+  const _UnitDetailScreen({
+    required this.token,
+    required this.unitId,
+    required this.permissions,
+  });
+
+  final String token;
+  final String unitId;
+  final Set<String> permissions;
+
+  @override
+  State<_UnitDetailScreen> createState() => _UnitDetailScreenState();
+}
+
+class _UnitDetailScreenState extends State<_UnitDetailScreen> {
+  final ApiService _apiService = ApiService();
+  late Future<Map<String, dynamic>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<Map<String, dynamic>> _load() {
+    return _apiService.publicDetail('/commodities/units/${widget.unitId}');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Unit')),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return _ErrorState(
+              message: snapshot.error.toString(),
+              onRetry: () => setState(() => _future = _load()),
+            );
+          }
+          final unit = snapshot.data ?? const <String, dynamic>{};
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+            children: [
+              _InfoTile(label: 'Name', value: _readValue(unit, 'name')),
+              _InfoTile(label: 'Symbol', value: _readValue(unit, 'symbol')),
+              _InfoTile(
+                label: 'Description',
+                value: _readValue(unit, 'description', fallback: '-'),
+              ),
+              const SizedBox(height: 20),
+              if (widget.permissions.contains('commodities.units.update'))
+                FilledButton.icon(
+                  onPressed: () => _edit(unit),
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Edit unit'),
+                ),
+              if (widget.permissions.contains('commodities.units.delete')) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _delete,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Delete unit'),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _edit(Map<String, dynamic> unit) async {
+    final changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _UnitFormSheet(
+        unit: unit,
+        onSubmit: (body) => _apiService.protectedUpdate(
+          token: widget.token,
+          path: '/commodities/units/${widget.unitId}',
+          body: body,
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _delete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete unit?'),
+        content: const Text('This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+    try {
+      await _apiService.protectedDelete(
+        token: widget.token,
+        path: '/commodities/units/${widget.unitId}',
+      );
+      if (mounted) {
+        Navigator.of(context).pop(true);
+      }
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+}
+
+class _UnitFormSheet extends StatefulWidget {
+  const _UnitFormSheet({required this.onSubmit, this.unit});
+
+  final Map<String, dynamic>? unit;
+  final Future<Map<String, dynamic>> Function(Map<String, dynamic> body)
+  onSubmit;
+
+  @override
+  State<_UnitFormSheet> createState() => _UnitFormSheetState();
+}
+
+class _UnitFormSheetState extends State<_UnitFormSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late final TextEditingController _symbolController;
+  late final TextEditingController _descriptionController;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final unit = widget.unit ?? const <String, dynamic>{};
+    _nameController = TextEditingController(text: _readValue(unit, 'name'));
+    _symbolController = TextEditingController(text: _readValue(unit, 'symbol'));
+    _descriptionController = TextEditingController(
+      text: _readValue(unit, 'description'),
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _symbolController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        8,
+        20,
+        MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              widget.unit == null ? 'Create unit' : 'Edit unit',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 16),
+            _sheetField(_nameController, 'Name', enabled: !_isSubmitting),
+            _sheetField(_symbolController, 'Symbol', enabled: !_isSubmitting),
+            _sheetField(
+              _descriptionController,
+              'Description',
+              enabled: !_isSubmitting,
+              required: false,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: FilledButton(
+                onPressed: _isSubmitting ? null : _submit,
+                child: Text(_isSubmitting ? 'Saving...' : 'Save'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    setState(() => _isSubmitting = true);
+    try {
+      await widget.onSubmit({
+        'name': _nameController.text.trim(),
+        'symbol': _symbolController.text.trim(),
+        'description': _descriptionController.text.trim(),
+      });
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
   }
 }
 

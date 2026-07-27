@@ -150,6 +150,11 @@ class ApiService {
     return _readList(response);
   }
 
+  Future<Map<String, dynamic>> publicDetail(String path) async {
+    final response = await _get(path);
+    return _extractData(response);
+  }
+
   Future<Map<String, dynamic>> register({
     required String fullName,
     required String phoneNumber,
