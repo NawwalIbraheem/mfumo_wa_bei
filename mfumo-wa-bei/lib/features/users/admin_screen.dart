@@ -92,6 +92,7 @@ class AdminScreen extends StatelessWidget {
           protected: false,
           primaryField: 'name',
           secondaryFields: ['level', 'parent.name'],
+          type: _AdminModuleType.areas,
         ),
       if (_hasAny(['markets.create', 'markets.update', 'markets.delete']))
         const _AdminModule(
@@ -102,6 +103,7 @@ class AdminScreen extends StatelessWidget {
           protected: false,
           primaryField: 'name',
           secondaryFields: ['admin_area.name', 'status'],
+          type: _AdminModuleType.markets,
         ),
       if (_hasAny([
         'commodities.create',
@@ -116,6 +118,18 @@ class AdminScreen extends StatelessWidget {
           protected: false,
           primaryField: 'name',
           secondaryFields: ['unit', 'categories.length'],
+          type: _AdminModuleType.commodities,
+        ),
+      if (_hasAny(['listings.create', 'listings.update', 'listings.delete']))
+        const _AdminModule(
+          icon: Icons.assignment_outlined,
+          title: 'Listings',
+          subtitle: 'Manage commodity listings',
+          endpoint: '/listings',
+          protected: false,
+          primaryField: 'title',
+          secondaryFields: ['commodity.name', 'adm_area.name', 'status'],
+          type: _AdminModuleType.listings,
         ),
     ];
 
@@ -183,7 +197,18 @@ class _AdminModule {
   final _AdminModuleType type;
 }
 
-enum _AdminModuleType { generic, users, roles, permissions, categories, units }
+enum _AdminModuleType {
+  generic,
+  users,
+  roles,
+  permissions,
+  categories,
+  units,
+  areas,
+  markets,
+  commodities,
+  listings,
+}
 
 class _AdminItem extends StatelessWidget {
   const _AdminItem({required this.module, required this.token});
@@ -333,6 +358,14 @@ class _AdminModuleScreenState extends State<_AdminModuleScreen> {
                       ? () => _openCategoryDetail(row)
                       : widget.module.type == _AdminModuleType.units
                       ? () => _openUnitDetail(row)
+                      : widget.module.type == _AdminModuleType.areas
+                      ? () => _openAreaDetail(row)
+                      : widget.module.type == _AdminModuleType.markets
+                      ? () => _openMarketDetail(row)
+                      : widget.module.type == _AdminModuleType.commodities
+                      ? () => _openCommodityDetail(row)
+                      : widget.module.type == _AdminModuleType.listings
+                      ? () => _openListingDetail(row)
                       : null,
                 );
               },
@@ -374,6 +407,39 @@ class _AdminModuleScreenState extends State<_AdminModuleScreen> {
         onPressed: _showCreateUnit,
         icon: const Icon(Icons.add_outlined),
         label: const Text('Unit'),
+      );
+    }
+    if (widget.module.type == _AdminModuleType.commodities &&
+        widget.permissions.contains('commodities.create')) {
+      return FloatingActionButton.extended(
+        onPressed: _showCreateCommodity,
+        icon: const Icon(Icons.add_outlined),
+        label: const Text('Commodity'),
+      );
+    }
+    if (widget.module.type == _AdminModuleType.markets &&
+        widget.permissions.contains('markets.create')) {
+      return FloatingActionButton.extended(
+        onPressed: _showCreateMarket,
+        icon: const Icon(Icons.add_outlined),
+        label: const Text('Market'),
+      );
+    }
+    if (widget.module.type == _AdminModuleType.areas &&
+        (widget.permissions.contains('areas.create') ||
+            widget.permissions.contains('areas.bulk_import'))) {
+      return FloatingActionButton.extended(
+        onPressed: _showAreaActions,
+        icon: const Icon(Icons.add_location_alt_outlined),
+        label: const Text('Area'),
+      );
+    }
+    if (widget.module.type == _AdminModuleType.listings &&
+        widget.permissions.contains('listings.create')) {
+      return FloatingActionButton.extended(
+        onPressed: _showCreateListing,
+        icon: const Icon(Icons.add_outlined),
+        label: const Text('Listing'),
       );
     }
     return null;
@@ -534,6 +600,207 @@ class _AdminModuleScreenState extends State<_AdminModuleScreen> {
         onSubmit: (body) => _apiService.protectedCreate(
           token: widget.token,
           path: '/commodities/units',
+          body: body,
+        ),
+      ),
+    );
+    if (created == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _openAreaDetail(Map<String, dynamic> row) async {
+    final areaId = row['area_id']?.toString();
+    if (areaId == null || areaId.isEmpty) {
+      return;
+    }
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _AreaDetailScreen(
+          token: widget.token,
+          areaId: areaId,
+          permissions: widget.permissions,
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _showAreaActions() async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.permissions.contains('areas.create'))
+              ListTile(
+                leading: const Icon(Icons.add_location_alt_outlined),
+                title: const Text('Create area'),
+                onTap: () => Navigator.pop(context, 'create'),
+              ),
+            if (widget.permissions.contains('areas.bulk_import'))
+              ListTile(
+                leading: const Icon(Icons.playlist_add_outlined),
+                title: const Text('Bulk import area path'),
+                onTap: () => Navigator.pop(context, 'bulk'),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (action == 'create') {
+      await _showCreateArea();
+    } else if (action == 'bulk') {
+      await _showBulkImportArea();
+    }
+  }
+
+  Future<void> _showCreateArea() async {
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _AreaFormSheet(
+        token: widget.token,
+        onSubmit: (body) => _apiService.protectedCreate(
+          token: widget.token,
+          path: '/areas',
+          body: body,
+        ),
+      ),
+    );
+    if (created == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _showBulkImportArea() async {
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _AreaBulkImportSheet(
+        onSubmit: (body) => _apiService.protectedCreate(
+          token: widget.token,
+          path: '/areas/bulk',
+          body: body,
+        ),
+      ),
+    );
+    if (created == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _openMarketDetail(Map<String, dynamic> row) async {
+    final marketId = row['market_id']?.toString();
+    if (marketId == null || marketId.isEmpty) {
+      return;
+    }
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _MarketDetailScreen(
+          token: widget.token,
+          marketId: marketId,
+          permissions: widget.permissions,
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _showCreateMarket() async {
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _MarketFormSheet(
+        token: widget.token,
+        onSubmit: (body) => _apiService.protectedCreate(
+          token: widget.token,
+          path: '/markets',
+          body: body,
+        ),
+      ),
+    );
+    if (created == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _openCommodityDetail(Map<String, dynamic> row) async {
+    final commodityId = row['commodity_id']?.toString();
+    if (commodityId == null || commodityId.isEmpty) {
+      return;
+    }
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _CommodityDetailScreen(
+          token: widget.token,
+          commodityId: commodityId,
+          permissions: widget.permissions,
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _showCreateCommodity() async {
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _CommodityFormSheet(
+        token: widget.token,
+        onSubmit: (body) => _apiService.protectedCreate(
+          token: widget.token,
+          path: '/commodities',
+          body: body,
+        ),
+      ),
+    );
+    if (created == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _openListingDetail(Map<String, dynamic> row) async {
+    final listingId = row['listing_id']?.toString();
+    if (listingId == null || listingId.isEmpty) {
+      return;
+    }
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _ListingDetailScreen(
+          token: widget.token,
+          listingId: listingId,
+          permissions: widget.permissions,
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _showCreateListing() async {
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _ListingFormSheet(
+        token: widget.token,
+        onSubmit: (body) => _apiService.protectedCreate(
+          token: widget.token,
+          path: '/listings',
           body: body,
         ),
       ),
@@ -1736,6 +2003,2142 @@ class _UnitFormSheetState extends State<_UnitFormSheet> {
   }
 }
 
+class _AreaDetailScreen extends StatefulWidget {
+  const _AreaDetailScreen({
+    required this.token,
+    required this.areaId,
+    required this.permissions,
+  });
+
+  final String token;
+  final String areaId;
+  final Set<String> permissions;
+
+  @override
+  State<_AreaDetailScreen> createState() => _AreaDetailScreenState();
+}
+
+class _AreaDetailScreenState extends State<_AreaDetailScreen> {
+  final ApiService _apiService = ApiService();
+  late Future<Map<String, dynamic>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<Map<String, dynamic>> _load() {
+    return _apiService.publicDetail('/areas/${widget.areaId}');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Area')),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return _ErrorState(
+              message: snapshot.error.toString(),
+              onRetry: () => setState(() => _future = _load()),
+            );
+          }
+          final area = snapshot.data ?? const <String, dynamic>{};
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+            children: [
+              _InfoTile(label: 'Name', value: _readValue(area, 'name')),
+              _InfoTile(label: 'Level', value: _readValue(area, 'level')),
+              _InfoTile(
+                label: 'Parent',
+                value: _readValue(area, 'parent.name', fallback: '-'),
+              ),
+              const SizedBox(height: 20),
+              if (widget.permissions.contains('areas.update'))
+                FilledButton.icon(
+                  onPressed: () => _edit(area),
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Edit area'),
+                ),
+              if (widget.permissions.contains('areas.delete')) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _delete,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Delete area'),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _edit(Map<String, dynamic> area) async {
+    final changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _AreaFormSheet(
+        token: widget.token,
+        area: area,
+        onSubmit: (body) => _apiService.protectedUpdate(
+          token: widget.token,
+          path: '/areas/${widget.areaId}',
+          body: body,
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _delete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete area?'),
+        content: const Text('This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _apiService.protectedDelete(
+        token: widget.token,
+        path: '/areas/${widget.areaId}',
+      );
+      if (mounted) Navigator.of(context).pop(true);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+}
+
+class _AreaFormSheet extends StatefulWidget {
+  const _AreaFormSheet({
+    required this.token,
+    required this.onSubmit,
+    this.area,
+  });
+
+  final String token;
+  final Map<String, dynamic>? area;
+  final Future<Map<String, dynamic>> Function(Map<String, dynamic> body)
+  onSubmit;
+
+  @override
+  State<_AreaFormSheet> createState() => _AreaFormSheetState();
+}
+
+class _AreaFormSheetState extends State<_AreaFormSheet> {
+  final ApiService _apiService = ApiService();
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late Future<List<Map<String, dynamic>>> _areasFuture;
+  String _level = 'region';
+  String? _parentId;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final area = widget.area ?? const <String, dynamic>{};
+    _nameController = TextEditingController(text: _readValue(area, 'name'));
+    _level = _readValue(area, 'level', fallback: 'region');
+    _parentId = _readValue(area, 'parent.area_id');
+    if (_parentId != null && _parentId!.isEmpty) {
+      _parentId = null;
+    }
+    _areasFuture = _apiService.publicList('/areas');
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.75,
+      child: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _areasFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return _ErrorState(
+              message: snapshot.error.toString(),
+              onRetry: () => setState(() {
+                _areasFuture = _apiService.publicList('/areas');
+              }),
+            );
+          }
+          final areas = snapshot.data ?? const <Map<String, dynamic>>[];
+          final parentOptions = areas
+              .where(
+                (area) =>
+                    area['area_id']?.toString() !=
+                    widget.area?['area_id']?.toString(),
+              )
+              .toList();
+          return Form(
+            key: _formKey,
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                8,
+                20,
+                MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              children: [
+                Text(
+                  widget.area == null ? 'Create area' : 'Edit area',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                _sheetField(_nameController, 'Name', enabled: !_isSubmitting),
+                DropdownButtonFormField<String>(
+                  initialValue: _level,
+                  decoration: const InputDecoration(labelText: 'Level'),
+                  items: const [
+                    DropdownMenuItem(value: 'region', child: Text('region')),
+                    DropdownMenuItem(
+                      value: 'district',
+                      child: Text('district'),
+                    ),
+                    DropdownMenuItem(value: 'ward', child: Text('ward')),
+                  ],
+                  onChanged: _isSubmitting
+                      ? null
+                      : (value) => setState(() {
+                          _level = value ?? _level;
+                          if (_level == 'region') _parentId = null;
+                        }),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _parentId,
+                  decoration: const InputDecoration(labelText: 'Parent'),
+                  items: [
+                    const DropdownMenuItem(value: '', child: Text('None')),
+                    ...parentOptions.map(
+                      (area) => DropdownMenuItem(
+                        value: area['area_id']?.toString(),
+                        child: Text(
+                          '${area['name'] ?? ''} (${area['level'] ?? ''})',
+                        ),
+                      ),
+                    ),
+                  ],
+                  onChanged: _isSubmitting || _level == 'region'
+                      ? null
+                      : (value) => setState(() {
+                          _parentId = value == null || value.isEmpty
+                              ? null
+                              : value;
+                        }),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: FilledButton(
+                    onPressed: _isSubmitting ? null : _submit,
+                    child: Text(_isSubmitting ? 'Saving...' : 'Save'),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isSubmitting = true);
+    final body = <String, dynamic>{
+      'name': _nameController.text.trim(),
+      'level': _level,
+      'parent_id': _level == 'region' ? null : _parentId,
+    };
+    try {
+      await widget.onSubmit(body);
+      if (mounted) Navigator.pop(context, true);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+}
+
+class _AreaBulkImportSheet extends StatefulWidget {
+  const _AreaBulkImportSheet({required this.onSubmit});
+
+  final Future<Map<String, dynamic>> Function(Map<String, dynamic> body)
+  onSubmit;
+
+  @override
+  State<_AreaBulkImportSheet> createState() => _AreaBulkImportSheetState();
+}
+
+class _AreaBulkImportSheetState extends State<_AreaBulkImportSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController _pathController = TextEditingController();
+  String _level = 'region';
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _pathController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        8,
+        20,
+        MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Bulk import area',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              initialValue: _level,
+              decoration: const InputDecoration(labelText: 'Level'),
+              items: const [
+                DropdownMenuItem(value: 'region', child: Text('region')),
+                DropdownMenuItem(value: 'district', child: Text('district')),
+                DropdownMenuItem(value: 'ward', child: Text('ward')),
+              ],
+              onChanged: _isSubmitting
+                  ? null
+                  : (value) => setState(() => _level = value ?? _level),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _pathController,
+              enabled: !_isSubmitting,
+              decoration: const InputDecoration(
+                labelText: 'Path',
+                hintText: 'Region, District, Ward',
+              ),
+              validator: (value) =>
+                  value == null || value.trim().isEmpty ? 'Required' : null,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: FilledButton(
+                onPressed: _isSubmitting ? null : _submit,
+                child: Text(_isSubmitting ? 'Saving...' : 'Save'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isSubmitting = true);
+    try {
+      await widget.onSubmit({
+        'level': _level,
+        'path': _pathController.text
+            .split(',')
+            .map((part) => part.trim())
+            .where((part) => part.isNotEmpty)
+            .toList(),
+      });
+      if (mounted) Navigator.pop(context, true);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+}
+
+class _MarketDetailScreen extends StatefulWidget {
+  const _MarketDetailScreen({
+    required this.token,
+    required this.marketId,
+    required this.permissions,
+  });
+
+  final String token;
+  final String marketId;
+  final Set<String> permissions;
+
+  @override
+  State<_MarketDetailScreen> createState() => _MarketDetailScreenState();
+}
+
+class _MarketDetailScreenState extends State<_MarketDetailScreen> {
+  final ApiService _apiService = ApiService();
+  late Future<Map<String, dynamic>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<Map<String, dynamic>> _load() {
+    return _apiService.publicDetail('/markets/${widget.marketId}');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Market')),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return _ErrorState(
+              message: snapshot.error.toString(),
+              onRetry: () => setState(() => _future = _load()),
+            );
+          }
+          final market = snapshot.data ?? const <String, dynamic>{};
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+            children: [
+              _InfoTile(label: 'Name', value: _readValue(market, 'name')),
+              _InfoTile(
+                label: 'Code',
+                value: _readValue(market, 'code', fallback: '-'),
+              ),
+              _InfoTile(
+                label: 'Area',
+                value: _readValue(market, 'admin_area.name', fallback: '-'),
+              ),
+              _InfoTile(
+                label: 'Address',
+                value: _readValue(market, 'address', fallback: '-'),
+              ),
+              _InfoTile(
+                label: 'Status',
+                value: _readValue(market, 'status', fallback: '-'),
+              ),
+              _InfoTile(
+                label: 'Description',
+                value: _readValue(market, 'description', fallback: '-'),
+              ),
+              const SizedBox(height: 20),
+              _MarketPricesSection(
+                token: widget.token,
+                marketId: widget.marketId,
+                permissions: widget.permissions,
+                latest: false,
+              ),
+              const SizedBox(height: 16),
+              _MarketPricesSection(
+                token: widget.token,
+                marketId: widget.marketId,
+                permissions: widget.permissions,
+                latest: true,
+              ),
+              const SizedBox(height: 20),
+              if (widget.permissions.contains('markets.update'))
+                FilledButton.icon(
+                  onPressed: () => _edit(market),
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Edit market'),
+                ),
+              if (widget.permissions.contains('markets.delete')) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _delete,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Delete market'),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _edit(Map<String, dynamic> market) async {
+    final changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _MarketFormSheet(
+        token: widget.token,
+        market: market,
+        onSubmit: (body) => _apiService.protectedUpdate(
+          token: widget.token,
+          path: '/markets/${widget.marketId}',
+          body: body,
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _delete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete market?'),
+        content: const Text('This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+    try {
+      await _apiService.protectedDelete(
+        token: widget.token,
+        path: '/markets/${widget.marketId}',
+      );
+      if (mounted) {
+        Navigator.of(context).pop(true);
+      }
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+}
+
+class _MarketFormSheet extends StatefulWidget {
+  const _MarketFormSheet({
+    required this.token,
+    required this.onSubmit,
+    this.market,
+  });
+
+  final String token;
+  final Map<String, dynamic>? market;
+  final Future<Map<String, dynamic>> Function(Map<String, dynamic> body)
+  onSubmit;
+
+  @override
+  State<_MarketFormSheet> createState() => _MarketFormSheetState();
+}
+
+class _MarketFormSheetState extends State<_MarketFormSheet> {
+  final ApiService _apiService = ApiService();
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late final TextEditingController _codeController;
+  late final TextEditingController _addressController;
+  late final TextEditingController _latitudeController;
+  late final TextEditingController _longitudeController;
+  late final TextEditingController _descriptionController;
+  late Future<List<Map<String, dynamic>>> _areasFuture;
+  String? _selectedAreaId;
+  String _status = 'active';
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final market = widget.market ?? const <String, dynamic>{};
+    _nameController = TextEditingController(text: _readValue(market, 'name'));
+    _codeController = TextEditingController(text: _readValue(market, 'code'));
+    _addressController = TextEditingController(
+      text: _readValue(market, 'address'),
+    );
+    _latitudeController = TextEditingController(
+      text: _readValue(market, 'latitude'),
+    );
+    _longitudeController = TextEditingController(
+      text: _readValue(market, 'longitude'),
+    );
+    _descriptionController = TextEditingController(
+      text: _readValue(market, 'description'),
+    );
+    _selectedAreaId = _readValue(market, 'admin_area.area_id');
+    if (_selectedAreaId != null && _selectedAreaId!.isEmpty) {
+      _selectedAreaId = null;
+    }
+    _status = _readValue(market, 'status', fallback: 'active');
+    _areasFuture = _apiService.publicList('/areas');
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _codeController.dispose();
+    _addressController.dispose();
+    _latitudeController.dispose();
+    _longitudeController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.9,
+      child: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _areasFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return _ErrorState(
+              message: snapshot.error.toString(),
+              onRetry: () => setState(() {
+                _areasFuture = _apiService.publicList('/areas');
+              }),
+            );
+          }
+          final areas = snapshot.data ?? const <Map<String, dynamic>>[];
+          if (_selectedAreaId == null && areas.isNotEmpty) {
+            _selectedAreaId = areas.first['area_id']?.toString();
+          }
+
+          return Form(
+            key: _formKey,
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                8,
+                20,
+                MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              children: [
+                Text(
+                  widget.market == null ? 'Create market' : 'Edit market',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                _sheetField(_nameController, 'Name', enabled: !_isSubmitting),
+                _sheetField(
+                  _codeController,
+                  'Code',
+                  enabled: !_isSubmitting,
+                  required: false,
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedAreaId,
+                  decoration: const InputDecoration(labelText: 'Area'),
+                  items: areas
+                      .map(
+                        (area) => DropdownMenuItem(
+                          value: area['area_id']?.toString(),
+                          child: Text(
+                            '${area['name'] ?? ''} (${area['level'] ?? ''})',
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  validator: (value) =>
+                      value == null || value.isEmpty ? 'Required' : null,
+                  onChanged: _isSubmitting
+                      ? null
+                      : (value) => setState(() => _selectedAreaId = value),
+                ),
+                const SizedBox(height: 12),
+                _sheetField(
+                  _addressController,
+                  'Address',
+                  enabled: !_isSubmitting,
+                  required: false,
+                ),
+                _sheetField(
+                  _latitudeController,
+                  'Latitude',
+                  enabled: !_isSubmitting,
+                  required: false,
+                ),
+                _sheetField(
+                  _longitudeController,
+                  'Longitude',
+                  enabled: !_isSubmitting,
+                  required: false,
+                ),
+                _sheetField(
+                  _descriptionController,
+                  'Description',
+                  enabled: !_isSubmitting,
+                  required: false,
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: _status,
+                  decoration: const InputDecoration(labelText: 'Status'),
+                  items: const [
+                    DropdownMenuItem(value: 'active', child: Text('active')),
+                    DropdownMenuItem(
+                      value: 'inactive',
+                      child: Text('inactive'),
+                    ),
+                  ],
+                  onChanged: _isSubmitting
+                      ? null
+                      : (value) => setState(() => _status = value ?? _status),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: FilledButton(
+                    onPressed: _isSubmitting ? null : _submit,
+                    child: Text(_isSubmitting ? 'Saving...' : 'Save'),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    setState(() => _isSubmitting = true);
+    final body = <String, dynamic>{
+      'name': _nameController.text.trim(),
+      'admin_area_id': _selectedAreaId,
+      'status': _status,
+    };
+    _addIfNotBlank(body, 'code', _codeController.text);
+    _addIfNotBlank(body, 'address', _addressController.text);
+    _addIfNotBlank(body, 'latitude', _latitudeController.text);
+    _addIfNotBlank(body, 'longitude', _longitudeController.text);
+    _addIfNotBlank(body, 'description', _descriptionController.text);
+    try {
+      await widget.onSubmit(body);
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+}
+
+class _MarketPricesSection extends StatefulWidget {
+  const _MarketPricesSection({
+    required this.token,
+    required this.marketId,
+    required this.permissions,
+    required this.latest,
+  });
+
+  final String token;
+  final String marketId;
+  final Set<String> permissions;
+  final bool latest;
+
+  @override
+  State<_MarketPricesSection> createState() => _MarketPricesSectionState();
+}
+
+class _MarketPricesSectionState extends State<_MarketPricesSection> {
+  final ApiService _apiService = ApiService();
+  late Future<List<Map<String, dynamic>>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<List<Map<String, dynamic>>> _load() {
+    return _apiService.publicList(
+      widget.latest
+          ? '/markets/${widget.marketId}/latest-prices'
+          : '/markets/${widget.marketId}/prices',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _future,
+      builder: (context, snapshot) {
+        final title = widget.latest ? 'Latest prices' : 'Market prices';
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return _InlineError(
+            message: snapshot.error.toString(),
+            onRetry: () => setState(() => _future = _load()),
+          );
+        }
+        final prices = snapshot.data ?? const <Map<String, dynamic>>[];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                if (!widget.latest &&
+                    widget.permissions.contains('market_prices.create'))
+                  IconButton(
+                    tooltip: 'Add price',
+                    onPressed: _createPrice,
+                    icon: const Icon(Icons.add_chart_outlined),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (prices.isEmpty)
+              const Text('Hakuna taarifa kwa sasa.')
+            else
+              for (final price in prices) ...[
+                _PriceAdminTile(
+                  price: price,
+                  onTap: widget.latest ? null : () => _openPriceDetail(price),
+                ),
+                const SizedBox(height: 8),
+              ],
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _createPrice() async {
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _MarketPriceFormSheet(
+        token: widget.token,
+        onSubmit: (body) => _apiService.protectedCreate(
+          token: widget.token,
+          path: '/markets/${widget.marketId}/prices',
+          body: body,
+        ),
+      ),
+    );
+    if (created == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _openPriceDetail(Map<String, dynamic> price) async {
+    final priceId = price['price_id']?.toString();
+    if (priceId == null || priceId.isEmpty) {
+      return;
+    }
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _MarketPriceDetailScreen(
+          token: widget.token,
+          priceId: priceId,
+          permissions: widget.permissions,
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+}
+
+class _PriceAdminTile extends StatelessWidget {
+  const _PriceAdminTile({required this.price, this.onTap});
+
+  final Map<String, dynamic> price;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      onTap: onTap,
+      tileColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      leading: const Icon(Icons.show_chart, color: Color(0xFF0E7A3B)),
+      title: Text(
+        _readValue(
+          price,
+          'commodity.name',
+          fallback: _readValue(price, 'market.name', fallback: 'Price'),
+        ),
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+      subtitle: Text(_readValue(price, 'price_date', fallback: '-')),
+      trailing: Text(
+        '${_readValue(price, 'currency', fallback: 'TZS')} ${_readValue(price, 'price', fallback: '-')}',
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+}
+
+class _MarketPriceDetailScreen extends StatefulWidget {
+  const _MarketPriceDetailScreen({
+    required this.token,
+    required this.priceId,
+    required this.permissions,
+  });
+
+  final String token;
+  final String priceId;
+  final Set<String> permissions;
+
+  @override
+  State<_MarketPriceDetailScreen> createState() =>
+      _MarketPriceDetailScreenState();
+}
+
+class _MarketPriceDetailScreenState extends State<_MarketPriceDetailScreen> {
+  final ApiService _apiService = ApiService();
+  late Future<Map<String, dynamic>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<Map<String, dynamic>> _load() {
+    return _apiService.publicDetail('/market-prices/${widget.priceId}');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Market price')),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return _ErrorState(
+              message: snapshot.error.toString(),
+              onRetry: () => setState(() => _future = _load()),
+            );
+          }
+          final price = snapshot.data ?? const <String, dynamic>{};
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+            children: [
+              _InfoTile(
+                label: 'Commodity',
+                value: _readValue(price, 'commodity.name', fallback: '-'),
+              ),
+              _InfoTile(
+                label: 'Market',
+                value: _readValue(price, 'market.name', fallback: '-'),
+              ),
+              _InfoTile(label: 'Price', value: _readValue(price, 'price')),
+              _InfoTile(
+                label: 'Currency',
+                value: _readValue(price, 'currency', fallback: 'TZS'),
+              ),
+              _InfoTile(
+                label: 'Date',
+                value: _readValue(price, 'price_date', fallback: '-'),
+              ),
+              const SizedBox(height: 20),
+              if (widget.permissions.contains('market_prices.update'))
+                FilledButton.icon(
+                  onPressed: () => _edit(price),
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Edit price'),
+                ),
+              if (widget.permissions.contains('market_prices.delete')) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _delete,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Delete price'),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _edit(Map<String, dynamic> price) async {
+    final changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _MarketPriceFormSheet(
+        token: widget.token,
+        price: price,
+        onSubmit: (body) => _apiService.protectedUpdate(
+          token: widget.token,
+          path: '/market-prices/${widget.priceId}',
+          body: body,
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _delete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete price?'),
+        content: const Text('This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _apiService.protectedDelete(
+        token: widget.token,
+        path: '/market-prices/${widget.priceId}',
+      );
+      if (mounted) Navigator.of(context).pop(true);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+}
+
+class _MarketPriceFormSheet extends StatefulWidget {
+  const _MarketPriceFormSheet({
+    required this.token,
+    required this.onSubmit,
+    this.price,
+  });
+
+  final String token;
+  final Map<String, dynamic>? price;
+  final Future<Map<String, dynamic>> Function(Map<String, dynamic> body)
+  onSubmit;
+
+  @override
+  State<_MarketPriceFormSheet> createState() => _MarketPriceFormSheetState();
+}
+
+class _MarketPriceFormSheetState extends State<_MarketPriceFormSheet> {
+  final ApiService _apiService = ApiService();
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _priceController;
+  late final TextEditingController _currencyController;
+  late final TextEditingController _dateController;
+  late Future<List<Map<String, dynamic>>> _commoditiesFuture;
+  String? _selectedCommodityId;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final price = widget.price ?? const <String, dynamic>{};
+    _priceController = TextEditingController(text: _readValue(price, 'price'));
+    _currencyController = TextEditingController(
+      text: _readValue(price, 'currency', fallback: 'TZS'),
+    );
+    _dateController = TextEditingController(
+      text: _readValue(
+        price,
+        'price_date',
+        fallback: DateTime.now().toIso8601String().split('T').first,
+      ),
+    );
+    _selectedCommodityId = _readValue(price, 'commodity.commodity_id');
+    if (_selectedCommodityId != null && _selectedCommodityId!.isEmpty) {
+      _selectedCommodityId = null;
+    }
+    _commoditiesFuture = _apiService.publicList('/commodities');
+  }
+
+  @override
+  void dispose() {
+    _priceController.dispose();
+    _currencyController.dispose();
+    _dateController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.75,
+      child: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _commoditiesFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return _ErrorState(
+              message: snapshot.error.toString(),
+              onRetry: () => setState(() {
+                _commoditiesFuture = _apiService.publicList('/commodities');
+              }),
+            );
+          }
+          final commodities = snapshot.data ?? const <Map<String, dynamic>>[];
+          if (_selectedCommodityId == null && commodities.isNotEmpty) {
+            _selectedCommodityId = commodities.first['commodity_id']
+                ?.toString();
+          }
+          return Form(
+            key: _formKey,
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                8,
+                20,
+                MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              children: [
+                Text(
+                  widget.price == null ? 'Create price' : 'Edit price',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedCommodityId,
+                  decoration: const InputDecoration(labelText: 'Commodity'),
+                  items: commodities
+                      .map(
+                        (commodity) => DropdownMenuItem(
+                          value: commodity['commodity_id']?.toString(),
+                          child: Text(commodity['name']?.toString() ?? ''),
+                        ),
+                      )
+                      .toList(),
+                  validator: (value) =>
+                      value == null || value.isEmpty ? 'Required' : null,
+                  onChanged: _isSubmitting
+                      ? null
+                      : (value) => setState(() => _selectedCommodityId = value),
+                ),
+                const SizedBox(height: 12),
+                _sheetField(_priceController, 'Price', enabled: !_isSubmitting),
+                _sheetField(
+                  _currencyController,
+                  'Currency',
+                  enabled: !_isSubmitting,
+                ),
+                _sheetField(
+                  _dateController,
+                  'Price date',
+                  enabled: !_isSubmitting,
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: FilledButton(
+                    onPressed: _isSubmitting ? null : _submit,
+                    child: Text(_isSubmitting ? 'Saving...' : 'Save'),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isSubmitting = true);
+    try {
+      await widget.onSubmit({
+        'commodity_id': _selectedCommodityId,
+        'price': _priceController.text.trim(),
+        'currency': _currencyController.text.trim(),
+        'price_date': _dateController.text.trim(),
+      });
+      if (mounted) Navigator.pop(context, true);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+}
+
+class _InlineError extends StatelessWidget {
+  const _InlineError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      tileColor: Colors.white,
+      title: Text(message),
+      trailing: IconButton(onPressed: onRetry, icon: const Icon(Icons.refresh)),
+    );
+  }
+}
+
+class _CommodityDetailScreen extends StatefulWidget {
+  const _CommodityDetailScreen({
+    required this.token,
+    required this.commodityId,
+    required this.permissions,
+  });
+
+  final String token;
+  final String commodityId;
+  final Set<String> permissions;
+
+  @override
+  State<_CommodityDetailScreen> createState() => _CommodityDetailScreenState();
+}
+
+class _CommodityDetailScreenState extends State<_CommodityDetailScreen> {
+  final ApiService _apiService = ApiService();
+  late Future<Map<String, dynamic>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<Map<String, dynamic>> _load() {
+    return _apiService.publicDetail('/commodities/${widget.commodityId}');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Commodity')),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return _ErrorState(
+              message: snapshot.error.toString(),
+              onRetry: () => setState(() => _future = _load()),
+            );
+          }
+          final commodity = snapshot.data ?? const <String, dynamic>{};
+          final categories = commodity['categories'] is List
+              ? commodity['categories'] as List
+              : const [];
+          final categoryNames = categories
+              .whereType<Map<String, dynamic>>()
+              .map((category) => category['name']?.toString() ?? '')
+              .where((name) => name.isNotEmpty)
+              .join(', ');
+
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+            children: [
+              _InfoTile(label: 'Name', value: _readValue(commodity, 'name')),
+              _InfoTile(label: 'Unit', value: _readValue(commodity, 'unit')),
+              _InfoTile(
+                label: 'Description',
+                value: _readValue(commodity, 'description', fallback: '-'),
+              ),
+              _InfoTile(
+                label: 'Categories',
+                value: categoryNames.isEmpty ? '-' : categoryNames,
+              ),
+              const SizedBox(height: 20),
+              _CommodityPricesSection(
+                commodityId: widget.commodityId,
+                mode: _CommodityPriceViewMode.prices,
+              ),
+              const SizedBox(height: 16),
+              _CommodityPricesSection(
+                commodityId: widget.commodityId,
+                mode: _CommodityPriceViewMode.history,
+              ),
+              const SizedBox(height: 16),
+              _CommodityPricesSection(
+                commodityId: widget.commodityId,
+                mode: _CommodityPriceViewMode.comparison,
+              ),
+              const SizedBox(height: 20),
+              if (widget.permissions.contains('commodities.update'))
+                FilledButton.icon(
+                  onPressed: () => _edit(commodity),
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Edit commodity'),
+                ),
+              if (widget.permissions.contains('commodities.delete')) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _delete,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Delete commodity'),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _edit(Map<String, dynamic> commodity) async {
+    final changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _CommodityFormSheet(
+        token: widget.token,
+        commodity: commodity,
+        onSubmit: (body) => _apiService.protectedUpdate(
+          token: widget.token,
+          path: '/commodities/${widget.commodityId}',
+          body: body,
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _delete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete commodity?'),
+        content: const Text('This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+    try {
+      await _apiService.protectedDelete(
+        token: widget.token,
+        path: '/commodities/${widget.commodityId}',
+      );
+      if (mounted) {
+        Navigator.of(context).pop(true);
+      }
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+}
+
+enum _CommodityPriceViewMode { prices, history, comparison }
+
+class _CommodityPricesSection extends StatefulWidget {
+  const _CommodityPricesSection({
+    required this.commodityId,
+    required this.mode,
+  });
+
+  final String commodityId;
+  final _CommodityPriceViewMode mode;
+
+  @override
+  State<_CommodityPricesSection> createState() =>
+      _CommodityPricesSectionState();
+}
+
+class _CommodityPricesSectionState extends State<_CommodityPricesSection> {
+  final ApiService _apiService = ApiService();
+  late Future<List<Map<String, dynamic>>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<List<Map<String, dynamic>>> _load() {
+    return _apiService.publicList(_endpoint);
+  }
+
+  String get _endpoint {
+    return switch (widget.mode) {
+      _CommodityPriceViewMode.prices =>
+        '/commodities/${widget.commodityId}/prices',
+      _CommodityPriceViewMode.history =>
+        '/commodities/${widget.commodityId}/price-history',
+      _CommodityPriceViewMode.comparison =>
+        '/commodities/${widget.commodityId}/price-comparison',
+    };
+  }
+
+  String get _title {
+    return switch (widget.mode) {
+      _CommodityPriceViewMode.prices => 'Commodity prices',
+      _CommodityPriceViewMode.history => 'Price history',
+      _CommodityPriceViewMode.comparison => 'Price comparison',
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return _InlineError(
+            message: snapshot.error.toString(),
+            onRetry: () => setState(() => _future = _load()),
+          );
+        }
+        final prices = snapshot.data ?? const <Map<String, dynamic>>[];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _title,
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            if (prices.isEmpty)
+              const Text('Hakuna taarifa kwa sasa.')
+            else
+              for (final price in prices.take(8)) ...[
+                _PriceAdminTile(price: price),
+                const SizedBox(height: 8),
+              ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CommodityFormSheet extends StatefulWidget {
+  const _CommodityFormSheet({
+    required this.token,
+    required this.onSubmit,
+    this.commodity,
+  });
+
+  final String token;
+  final Map<String, dynamic>? commodity;
+  final Future<Map<String, dynamic>> Function(Map<String, dynamic> body)
+  onSubmit;
+
+  @override
+  State<_CommodityFormSheet> createState() => _CommodityFormSheetState();
+}
+
+class _CommodityFormSheetState extends State<_CommodityFormSheet> {
+  final ApiService _apiService = ApiService();
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late final TextEditingController _descriptionController;
+  late Future<List<List<Map<String, dynamic>>>> _optionsFuture;
+  String? _selectedUnitId;
+  final Set<String> _selectedCategoryIds = <String>{};
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final commodity = widget.commodity ?? const <String, dynamic>{};
+    _nameController = TextEditingController(
+      text: _readValue(commodity, 'name'),
+    );
+    _descriptionController = TextEditingController(
+      text: _readValue(commodity, 'description'),
+    );
+    final unitDetail = commodity['unit_detail'];
+    if (unitDetail is Map<String, dynamic>) {
+      _selectedUnitId = unitDetail['unit_id']?.toString();
+    }
+    final categories = commodity['categories'];
+    if (categories is List) {
+      _selectedCategoryIds.addAll(
+        categories
+            .whereType<Map<String, dynamic>>()
+            .map((category) => category['category_id']?.toString() ?? '')
+            .where((id) => id.isNotEmpty),
+      );
+    }
+    _optionsFuture = Future.wait([
+      _apiService.publicList('/commodities/units'),
+      _apiService.publicList('/commodities/categories'),
+    ]);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.9,
+      child: FutureBuilder<List<List<Map<String, dynamic>>>>(
+        future: _optionsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return _ErrorState(
+              message: snapshot.error.toString(),
+              onRetry: () => setState(() {
+                _optionsFuture = Future.wait([
+                  _apiService.publicList('/commodities/units'),
+                  _apiService.publicList('/commodities/categories'),
+                ]);
+              }),
+            );
+          }
+
+          final units = snapshot.data?[0] ?? const <Map<String, dynamic>>[];
+          final categories =
+              snapshot.data?[1] ?? const <Map<String, dynamic>>[];
+          if (_selectedUnitId == null && units.isNotEmpty) {
+            _selectedUnitId = units.first['unit_id']?.toString();
+          }
+
+          return Form(
+            key: _formKey,
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                8,
+                20,
+                MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              children: [
+                Text(
+                  widget.commodity == null
+                      ? 'Create commodity'
+                      : 'Edit commodity',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                _sheetField(_nameController, 'Name', enabled: !_isSubmitting),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedUnitId,
+                  decoration: const InputDecoration(labelText: 'Unit'),
+                  items: units
+                      .map(
+                        (unit) => DropdownMenuItem(
+                          value: unit['unit_id']?.toString(),
+                          child: Text(
+                            '${unit['name'] ?? ''} (${unit['symbol'] ?? ''})',
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  validator: (value) =>
+                      value == null || value.isEmpty ? 'Required' : null,
+                  onChanged: _isSubmitting
+                      ? null
+                      : (value) => setState(() => _selectedUnitId = value),
+                ),
+                const SizedBox(height: 12),
+                _sheetField(
+                  _descriptionController,
+                  'Description',
+                  enabled: !_isSubmitting,
+                  required: false,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Categories',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 6),
+                for (final category in categories)
+                  CheckboxListTile(
+                    value: _selectedCategoryIds.contains(
+                      category['category_id']?.toString() ?? '',
+                    ),
+                    onChanged: _isSubmitting
+                        ? null
+                        : (value) {
+                            final id = category['category_id']?.toString();
+                            if (id == null || id.isEmpty) {
+                              return;
+                            }
+                            setState(() {
+                              if (value == true) {
+                                _selectedCategoryIds.add(id);
+                              } else {
+                                _selectedCategoryIds.remove(id);
+                              }
+                            });
+                          },
+                    title: Text(category['name']?.toString() ?? ''),
+                  ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: FilledButton(
+                    onPressed: _isSubmitting ? null : _submit,
+                    child: Text(_isSubmitting ? 'Saving...' : 'Save'),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    setState(() => _isSubmitting = true);
+    try {
+      await widget.onSubmit({
+        'name': _nameController.text.trim(),
+        'unit_id': _selectedUnitId,
+        'description': _descriptionController.text.trim(),
+        'category_ids': _selectedCategoryIds.toList(),
+      });
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+}
+
+class _ListingDetailScreen extends StatefulWidget {
+  const _ListingDetailScreen({
+    required this.token,
+    required this.listingId,
+    required this.permissions,
+  });
+
+  final String token;
+  final String listingId;
+  final Set<String> permissions;
+
+  @override
+  State<_ListingDetailScreen> createState() => _ListingDetailScreenState();
+}
+
+class _ListingDetailScreenState extends State<_ListingDetailScreen> {
+  final ApiService _apiService = ApiService();
+  late Future<Map<String, dynamic>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<Map<String, dynamic>> _load() {
+    return _apiService.publicDetail('/listings/${widget.listingId}');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Listing')),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return _ErrorState(
+              message: snapshot.error.toString(),
+              onRetry: () => setState(() => _future = _load()),
+            );
+          }
+          final listing = snapshot.data ?? const <String, dynamic>{};
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+            children: [
+              _InfoTile(label: 'Title', value: _readValue(listing, 'title')),
+              _InfoTile(
+                label: 'Commodity',
+                value: _readValue(listing, 'commodity.name', fallback: '-'),
+              ),
+              _InfoTile(
+                label: 'Area',
+                value: _readValue(listing, 'adm_area.name', fallback: '-'),
+              ),
+              _InfoTile(label: 'Price', value: _readValue(listing, 'price')),
+              _InfoTile(
+                label: 'Quantity',
+                value: _readValue(listing, 'quantity', fallback: '-'),
+              ),
+              _InfoTile(
+                label: 'Status',
+                value: _readValue(listing, 'status', fallback: '-'),
+              ),
+              _InfoTile(
+                label: 'Description',
+                value: _readValue(listing, 'description', fallback: '-'),
+              ),
+              const SizedBox(height: 20),
+              if (widget.permissions.contains('listings.update'))
+                FilledButton.icon(
+                  onPressed: () => _edit(listing),
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Edit listing'),
+                ),
+              if (widget.permissions.contains('listings.delete')) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _delete,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Delete listing'),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _edit(Map<String, dynamic> listing) async {
+    final changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _ListingFormSheet(
+        token: widget.token,
+        listing: listing,
+        onSubmit: (body) => _apiService.protectedUpdate(
+          token: widget.token,
+          path: '/listings/${widget.listingId}',
+          body: body,
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _delete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete listing?'),
+        content: const Text('This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _apiService.protectedDelete(
+        token: widget.token,
+        path: '/listings/${widget.listingId}',
+      );
+      if (mounted) Navigator.of(context).pop(true);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+}
+
+class _ListingFormSheet extends StatefulWidget {
+  const _ListingFormSheet({
+    required this.token,
+    required this.onSubmit,
+    this.listing,
+  });
+
+  final String token;
+  final Map<String, dynamic>? listing;
+  final Future<Map<String, dynamic>> Function(Map<String, dynamic> body)
+  onSubmit;
+
+  @override
+  State<_ListingFormSheet> createState() => _ListingFormSheetState();
+}
+
+class _ListingFormSheetState extends State<_ListingFormSheet> {
+  final ApiService _apiService = ApiService();
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _titleController;
+  late final TextEditingController _descriptionController;
+  late final TextEditingController _priceController;
+  late final TextEditingController _quantityController;
+  late final TextEditingController _imageUrlsController;
+  late Future<List<List<Map<String, dynamic>>>> _optionsFuture;
+  String? _selectedCommodityId;
+  String? _selectedAreaId;
+  String _status = 'active';
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final listing = widget.listing ?? const <String, dynamic>{};
+    _titleController = TextEditingController(
+      text: _readValue(listing, 'title'),
+    );
+    _descriptionController = TextEditingController(
+      text: _readValue(listing, 'description'),
+    );
+    _priceController = TextEditingController(
+      text: _readValue(listing, 'price'),
+    );
+    _quantityController = TextEditingController(
+      text: _readValue(listing, 'quantity'),
+    );
+    final images = listing['images'];
+    _imageUrlsController = TextEditingController(
+      text: images is List
+          ? images
+                .whereType<Map<String, dynamic>>()
+                .map((image) => image['image_url']?.toString() ?? '')
+                .where((url) => url.isNotEmpty)
+                .join(', ')
+          : '',
+    );
+    _selectedCommodityId = _readValue(listing, 'commodity.commodity_id');
+    if (_selectedCommodityId != null && _selectedCommodityId!.isEmpty) {
+      _selectedCommodityId = null;
+    }
+    _selectedAreaId = _readValue(listing, 'adm_area.area_id');
+    if (_selectedAreaId != null && _selectedAreaId!.isEmpty) {
+      _selectedAreaId = null;
+    }
+    _status = _readValue(listing, 'status', fallback: 'active');
+    _optionsFuture = Future.wait([
+      _apiService.publicList('/commodities'),
+      _apiService.publicList('/areas'),
+    ]);
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _priceController.dispose();
+    _quantityController.dispose();
+    _imageUrlsController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.9,
+      child: FutureBuilder<List<List<Map<String, dynamic>>>>(
+        future: _optionsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return _ErrorState(
+              message: snapshot.error.toString(),
+              onRetry: () => setState(() {
+                _optionsFuture = Future.wait([
+                  _apiService.publicList('/commodities'),
+                  _apiService.publicList('/areas'),
+                ]);
+              }),
+            );
+          }
+          final commodities =
+              snapshot.data?[0] ?? const <Map<String, dynamic>>[];
+          final areas = snapshot.data?[1] ?? const <Map<String, dynamic>>[];
+          if (_selectedCommodityId == null && commodities.isNotEmpty) {
+            _selectedCommodityId = commodities.first['commodity_id']
+                ?.toString();
+          }
+          if (_selectedAreaId == null && areas.isNotEmpty) {
+            _selectedAreaId = areas.first['area_id']?.toString();
+          }
+          return Form(
+            key: _formKey,
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                8,
+                20,
+                MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              children: [
+                Text(
+                  widget.listing == null ? 'Create listing' : 'Edit listing',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                _sheetField(_titleController, 'Title', enabled: !_isSubmitting),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedCommodityId,
+                  decoration: const InputDecoration(labelText: 'Commodity'),
+                  items: commodities
+                      .map(
+                        (commodity) => DropdownMenuItem(
+                          value: commodity['commodity_id']?.toString(),
+                          child: Text(commodity['name']?.toString() ?? ''),
+                        ),
+                      )
+                      .toList(),
+                  validator: (value) =>
+                      value == null || value.isEmpty ? 'Required' : null,
+                  onChanged: _isSubmitting
+                      ? null
+                      : (value) => setState(() => _selectedCommodityId = value),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedAreaId,
+                  decoration: const InputDecoration(labelText: 'Area'),
+                  items: areas
+                      .map(
+                        (area) => DropdownMenuItem(
+                          value: area['area_id']?.toString(),
+                          child: Text(
+                            '${area['name'] ?? ''} (${area['level'] ?? ''})',
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  validator: (value) =>
+                      value == null || value.isEmpty ? 'Required' : null,
+                  onChanged: _isSubmitting
+                      ? null
+                      : (value) => setState(() => _selectedAreaId = value),
+                ),
+                const SizedBox(height: 12),
+                _sheetField(
+                  _descriptionController,
+                  'Description',
+                  enabled: !_isSubmitting,
+                  required: false,
+                ),
+                _sheetField(_priceController, 'Price', enabled: !_isSubmitting),
+                _sheetField(
+                  _quantityController,
+                  'Quantity',
+                  enabled: !_isSubmitting,
+                  required: false,
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: _status,
+                  decoration: const InputDecoration(labelText: 'Status'),
+                  items: const [
+                    DropdownMenuItem(value: 'active', child: Text('active')),
+                    DropdownMenuItem(
+                      value: 'inactive',
+                      child: Text('inactive'),
+                    ),
+                    DropdownMenuItem(value: 'sold', child: Text('sold')),
+                  ],
+                  onChanged: _isSubmitting
+                      ? null
+                      : (value) => setState(() => _status = value ?? _status),
+                ),
+                const SizedBox(height: 12),
+                _sheetField(
+                  _imageUrlsController,
+                  'Image URLs',
+                  enabled: !_isSubmitting,
+                  required: false,
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: FilledButton(
+                    onPressed: _isSubmitting ? null : _submit,
+                    child: Text(_isSubmitting ? 'Saving...' : 'Save'),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isSubmitting = true);
+    final body = <String, dynamic>{
+      'commodity_id': _selectedCommodityId,
+      'adm_area_id': _selectedAreaId,
+      'title': _titleController.text.trim(),
+      'description': _descriptionController.text.trim(),
+      'price': _priceController.text.trim(),
+      'status': _status,
+      'image_urls': _imageUrlsController.text
+          .split(',')
+          .map((url) => url.trim())
+          .where((url) => url.isNotEmpty)
+          .toList(),
+    };
+    _addIfNotBlank(body, 'quantity', _quantityController.text);
+    try {
+      await widget.onSubmit(body);
+      if (mounted) Navigator.pop(context, true);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+}
+
 Widget _sheetField(
   TextEditingController controller,
   String label, {
@@ -1753,6 +4156,13 @@ Widget _sheetField(
           : null,
     ),
   );
+}
+
+void _addIfNotBlank(Map<String, dynamic> body, String key, String value) {
+  final trimmed = value.trim();
+  if (trimmed.isNotEmpty) {
+    body[key] = trimmed;
+  }
 }
 
 class _UserFormSheet extends StatefulWidget {

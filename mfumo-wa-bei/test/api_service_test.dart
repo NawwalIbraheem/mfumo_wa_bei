@@ -369,5 +369,293 @@ void main() {
         endsWith('/commodities/units/unit1'),
       ]);
     });
+
+    test('supports commodity detail create update and delete', () async {
+      final methods = <String>[];
+      final paths = <String>[];
+      final service = ApiService(
+        client: MockClient((request) async {
+          methods.add(request.method);
+          paths.add(request.url.path);
+          return http.Response(
+            request.method == 'DELETE'
+                ? '{"success":true}'
+                : '{"data":{"commodity_id":"com1","name":"Rice","unit":"kg"}}',
+            200,
+          );
+        }),
+      );
+
+      await service.protectedCreate(
+        token: 'admin-token',
+        path: '/commodities',
+        body: {
+          'name': 'Rice',
+          'unit_id': 'unit1',
+          'category_ids': ['cat1'],
+        },
+      );
+      await service.publicDetail('/commodities/com1');
+      await service.protectedUpdate(
+        token: 'admin-token',
+        path: '/commodities/com1',
+        body: {'name': 'Rice', 'unit_id': 'unit1'},
+      );
+      await service.protectedDelete(
+        token: 'admin-token',
+        path: '/commodities/com1',
+      );
+
+      expect(methods, ['POST', 'GET', 'PATCH', 'DELETE']);
+      expect(paths, [
+        endsWith('/commodities'),
+        endsWith('/commodities/com1'),
+        endsWith('/commodities/com1'),
+        endsWith('/commodities/com1'),
+      ]);
+    });
+
+    test('supports market detail create update and delete', () async {
+      final methods = <String>[];
+      final paths = <String>[];
+      final service = ApiService(
+        client: MockClient((request) async {
+          methods.add(request.method);
+          paths.add(request.url.path);
+          return http.Response(
+            request.method == 'DELETE'
+                ? '{"success":true}'
+                : '{"data":{"market_id":"m1","name":"Soko Kuu","status":"active"}}',
+            200,
+          );
+        }),
+      );
+
+      await service.protectedCreate(
+        token: 'admin-token',
+        path: '/markets',
+        body: {'name': 'Soko Kuu', 'admin_area_id': 'area1'},
+      );
+      await service.publicDetail('/markets/m1');
+      await service.protectedUpdate(
+        token: 'admin-token',
+        path: '/markets/m1',
+        body: {'name': 'Soko Kuu'},
+      );
+      await service.protectedDelete(token: 'admin-token', path: '/markets/m1');
+
+      expect(methods, ['POST', 'GET', 'PATCH', 'DELETE']);
+      expect(paths, [
+        endsWith('/markets'),
+        endsWith('/markets/m1'),
+        endsWith('/markets/m1'),
+        endsWith('/markets/m1'),
+      ]);
+    });
+
+    test(
+      'supports market price detail and market nested price endpoints',
+      () async {
+        final methods = <String>[];
+        final paths = <String>[];
+        final service = ApiService(
+          client: MockClient((request) async {
+            methods.add(request.method);
+            paths.add(request.url.path);
+            return http.Response(
+              request.method == 'DELETE'
+                  ? '{"success":true}'
+                  : request.url.path.endsWith('/prices') ||
+                        request.url.path.endsWith('/latest-prices')
+                  ? '{"data":[{"price_id":"p1","price":"2400","currency":"TZS"}]}'
+                  : '{"data":{"price_id":"p1","price":"2400","currency":"TZS"}}',
+              200,
+            );
+          }),
+        );
+
+        await service.publicDetail('/market-prices/p1');
+        await service.protectedUpdate(
+          token: 'admin-token',
+          path: '/market-prices/p1',
+          body: {'price': '2500'},
+        );
+        await service.protectedDelete(
+          token: 'admin-token',
+          path: '/market-prices/p1',
+        );
+        await service.publicList('/markets/m1/prices');
+        await service.protectedCreate(
+          token: 'admin-token',
+          path: '/markets/m1/prices',
+          body: {'commodity_id': 'c1', 'price': '2400'},
+        );
+        await service.publicList('/markets/m1/latest-prices');
+
+        expect(methods, ['GET', 'PATCH', 'DELETE', 'GET', 'POST', 'GET']);
+        expect(paths, [
+          endsWith('/market-prices/p1'),
+          endsWith('/market-prices/p1'),
+          endsWith('/market-prices/p1'),
+          endsWith('/markets/m1/prices'),
+          endsWith('/markets/m1/prices'),
+          endsWith('/markets/m1/latest-prices'),
+        ]);
+      },
+    );
+
+    test('supports commodity price view endpoints', () async {
+      final paths = <String>[];
+      final service = ApiService(
+        client: MockClient((request) async {
+          paths.add(request.url.path);
+          return http.Response(
+            '{"data":[{"price_id":"p1","price":"2400","currency":"TZS"}]}',
+            200,
+          );
+        }),
+      );
+
+      await service.publicList('/commodities/c1/prices');
+      await service.publicList('/commodities/c1/price-history');
+      await service.publicList('/commodities/c1/price-comparison');
+
+      expect(paths, [
+        endsWith('/commodities/c1/prices'),
+        endsWith('/commodities/c1/price-history'),
+        endsWith('/commodities/c1/price-comparison'),
+      ]);
+    });
+
+    test('supports area create bulk detail update and delete', () async {
+      final methods = <String>[];
+      final paths = <String>[];
+      final service = ApiService(
+        client: MockClient((request) async {
+          methods.add(request.method);
+          paths.add(request.url.path);
+          return http.Response(
+            request.method == 'DELETE'
+                ? '{"success":true}'
+                : '{"data":{"area_id":"a1","name":"Morogoro","level":"region"}}',
+            200,
+          );
+        }),
+      );
+
+      await service.protectedCreate(
+        token: 'admin-token',
+        path: '/areas',
+        body: {'name': 'Morogoro', 'level': 'region'},
+      );
+      await service.protectedCreate(
+        token: 'admin-token',
+        path: '/areas/bulk',
+        body: {
+          'level': 'ward',
+          'path': ['Morogoro', 'Morogoro MC', 'Kihonda'],
+        },
+      );
+      await service.publicDetail('/areas/a1');
+      await service.protectedUpdate(
+        token: 'admin-token',
+        path: '/areas/a1',
+        body: {'name': 'Morogoro'},
+      );
+      await service.protectedDelete(token: 'admin-token', path: '/areas/a1');
+
+      expect(methods, ['POST', 'POST', 'GET', 'PATCH', 'DELETE']);
+      expect(paths, [
+        endsWith('/areas'),
+        endsWith('/areas/bulk'),
+        endsWith('/areas/a1'),
+        endsWith('/areas/a1'),
+        endsWith('/areas/a1'),
+      ]);
+    });
+
+    test('supports listing list create detail update and delete', () async {
+      final methods = <String>[];
+      final paths = <String>[];
+      final service = ApiService(
+        client: MockClient((request) async {
+          methods.add(request.method);
+          paths.add(request.url.path);
+          return http.Response(
+            request.method == 'GET' && request.url.path.endsWith('/listings')
+                ? '{"data":[{"listing_id":"l1","title":"Rice bags"}]}'
+                : request.method == 'DELETE'
+                ? '{"success":true}'
+                : '{"data":{"listing_id":"l1","title":"Rice bags"}}',
+            200,
+          );
+        }),
+      );
+
+      await service.publicList('/listings');
+      await service.protectedCreate(
+        token: 'seller-token',
+        path: '/listings',
+        body: {
+          'commodity_id': 'c1',
+          'adm_area_id': 'a1',
+          'title': 'Rice bags',
+          'price': '50000',
+        },
+      );
+      await service.publicDetail('/listings/l1');
+      await service.protectedUpdate(
+        token: 'seller-token',
+        path: '/listings/l1',
+        body: {'title': 'Rice bags'},
+      );
+      await service.protectedDelete(
+        token: 'seller-token',
+        path: '/listings/l1',
+      );
+
+      expect(methods, ['GET', 'POST', 'GET', 'PATCH', 'DELETE']);
+      expect(paths, [
+        endsWith('/listings'),
+        endsWith('/listings'),
+        endsWith('/listings/l1'),
+        endsWith('/listings/l1'),
+        endsWith('/listings/l1'),
+      ]);
+    });
+
+    test('supports order create detail and update', () async {
+      final methods = <String>[];
+      final paths = <String>[];
+      final service = ApiService(
+        client: MockClient((request) async {
+          methods.add(request.method);
+          paths.add(request.url.path);
+          return http.Response(
+            '{"data":{"order_id":"o1","quantity":"2","status":"pending"}}',
+            200,
+          );
+        }),
+      );
+
+      await service.protectedCreate(
+        token: 'buyer-token',
+        path: '/orders',
+        body: {'listing_id': 'l1', 'quantity': '2'},
+      );
+      await service.protectedDetail(token: 'buyer-token', path: '/orders/o1');
+      await service.protectedUpdate(
+        token: 'buyer-token',
+        path: '/orders/o1',
+        body: {'status': 'confirmed'},
+      );
+
+      expect(methods, ['POST', 'GET', 'PATCH']);
+      expect(paths, [
+        endsWith('/orders'),
+        endsWith('/orders/o1'),
+        endsWith('/orders/o1'),
+      ]);
+    });
   });
 }

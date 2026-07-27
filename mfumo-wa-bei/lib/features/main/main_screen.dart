@@ -242,12 +242,13 @@ class _MainScreenState extends State<MainScreen> {
             icon: Icon(Icons.receipt_long_outlined),
             label: 'Oda',
           ),
-          screen: OrdersScreen(token: _token ?? ''),
+          screen: OrdersScreen(token: _token ?? '', permissions: permissions),
           moreItem: MoreNavigationItem(
             icon: Icons.receipt_long_outlined,
             title: 'Oda',
             subtitle: 'Oda zinazoonekana kwa akaunti yako',
-            builder: (_) => OrdersScreen(token: _token ?? ''),
+            builder: (_) =>
+                OrdersScreen(token: _token ?? '', permissions: permissions),
           ),
         ),
       if (canSeeAdmin)
