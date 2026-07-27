@@ -7,8 +7,8 @@ import '../../../../features/auth/presentation/screens/login_screen.dart';
 import '../../../../features/home/presentation/screens/home_screen.dart';
 import '../../../../features/market_prices/presentation/screens/market_prices_screen.dart';
 import '../../../../features/markets/presentation/screens/markets_screen.dart';
+import '../../../../features/main/presentation/screens/more_screen.dart';
 import '../../../../features/notifications/presentation/screens/notifications_screen.dart';
-import '../../../../features/users/presentation/screens/account_screen.dart';
 import '../../../../features/users/presentation/screens/admin_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -194,8 +194,9 @@ class _MainScreenState extends State<MainScreen> {
           label: 'Admin',
         ),
       const NavigationDestination(
-        icon: Icon(Icons.person_outline),
-        label: 'Akaunti',
+        icon: Icon(Icons.more_horiz),
+        selectedIcon: Icon(Icons.more),
+        label: 'Zaidi',
       ),
     ];
 
@@ -224,7 +225,7 @@ class _MainScreenState extends State<MainScreen> {
       if (canSeePriceTools) const MarketPricesScreen(),
       if (canSeeNotifications) const NotificationsScreen(),
       if (canSeeAdmin) AdminScreen(permissions: permissions),
-      AccountScreen(
+      MoreScreen(
         name: fullName,
         email: user?['email']?.toString() ?? 'Hakuna barua pepe',
         phoneNumber: _readPhoneNumber(user),
