@@ -2,9 +2,24 @@ import 'package:flutter/material.dart';
 
 import '../../features/users/account_screen.dart';
 
+class MoreNavigationItem {
+  const MoreNavigationItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.builder,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final WidgetBuilder builder;
+}
+
 class MoreScreen extends StatelessWidget {
   const MoreScreen({
     super.key,
+    required this.extraItems,
     required this.name,
     required this.email,
     required this.phoneNumber,
@@ -12,6 +27,7 @@ class MoreScreen extends StatelessWidget {
     required this.onLogout,
   });
 
+  final List<MoreNavigationItem> extraItems;
   final String name;
   final String email;
   final String phoneNumber;
@@ -28,6 +44,19 @@ class MoreScreen extends StatelessWidget {
           style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 16),
+        for (final item in extraItems) ...[
+          _MoreTile(
+            icon: item.icon,
+            title: item.title,
+            subtitle: item.subtitle,
+            onTap: () {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: item.builder));
+            },
+          ),
+          const SizedBox(height: 10),
+        ],
         _MoreTile(
           icon: Icons.person_outline,
           title: 'Akaunti',

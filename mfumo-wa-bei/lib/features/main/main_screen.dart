@@ -170,29 +170,123 @@ class _MainScreenState extends State<MainScreen> {
         permissions.contains('roles.list') ||
         permissions.contains('permissions.list');
 
-    final destinations = <NavigationDestination>[
-      const NavigationDestination(
-        icon: Icon(Icons.home_outlined),
-        selectedIcon: Icon(Icons.home),
-        label: 'Nyumbani',
+    final primaryItems = <_MainNavigationItem>[
+      _MainNavigationItem(
+        destination: const NavigationDestination(
+          icon: Icon(Icons.home_outlined),
+          selectedIcon: Icon(Icons.home),
+          label: 'Nyumbani',
+        ),
+        screen: HomeScreen(
+          role: role,
+          filteredMarkets: filteredMarkets,
+          permissions: permissions,
+          onMarketTap: _showMarketDetails,
+        ),
+        moreItem: MoreNavigationItem(
+          icon: Icons.home_outlined,
+          title: 'Nyumbani',
+          subtitle: 'Muhtasari wa bei na masoko karibu nawe',
+          builder: (_) => HomeScreen(
+            role: role,
+            filteredMarkets: filteredMarkets,
+            permissions: permissions,
+            onMarketTap: _showMarketDetails,
+          ),
+        ),
       ),
-      const NavigationDestination(
-        icon: Icon(Icons.storefront_outlined),
-        selectedIcon: Icon(Icons.storefront),
-        label: 'Masoko',
+      _MainNavigationItem(
+        destination: const NavigationDestination(
+          icon: Icon(Icons.storefront_outlined),
+          selectedIcon: Icon(Icons.storefront),
+          label: 'Masoko',
+        ),
+        screen: MarketsScreen(
+          markets: filteredMarkets,
+          selectedCropFilter: selectedCropFilter,
+          searchController: _searchController,
+          searchQuery: searchQuery,
+          onSearchChanged: (value) => setState(() => searchQuery = value),
+          onClearSearch: () {
+            setState(() {
+              _searchController.clear();
+              searchQuery = '';
+            });
+          },
+          onFilterChanged: (value) =>
+              setState(() => selectedCropFilter = value),
+          onMarketTap: _showMarketDetails,
+        ),
+        moreItem: MoreNavigationItem(
+          icon: Icons.storefront_outlined,
+          title: 'Masoko',
+          subtitle: 'Tafuta na linganisha masoko',
+          builder: (_) => MarketsScreen(
+            markets: filteredMarkets,
+            selectedCropFilter: selectedCropFilter,
+            searchController: _searchController,
+            searchQuery: searchQuery,
+            onSearchChanged: (value) => setState(() => searchQuery = value),
+            onClearSearch: () {
+              setState(() {
+                _searchController.clear();
+                searchQuery = '';
+              });
+            },
+            onFilterChanged: (value) =>
+                setState(() => selectedCropFilter = value),
+            onMarketTap: _showMarketDetails,
+          ),
+        ),
       ),
       if (canSeePriceTools)
-        const NavigationDestination(icon: Icon(Icons.show_chart), label: 'Bei'),
+        const _MainNavigationItem(
+          destination: NavigationDestination(
+            icon: Icon(Icons.show_chart),
+            label: 'Bei',
+          ),
+          screen: MarketPricesScreen(),
+          moreItem: MoreNavigationItem(
+            icon: Icons.show_chart,
+            title: 'Bei',
+            subtitle: 'Mwenendo wa bei za mchele na maharage',
+            builder: _buildMarketPricesScreen,
+          ),
+        ),
       if (canSeeNotifications)
-        const NavigationDestination(
-          icon: Icon(Icons.notifications_outlined),
-          label: 'Arifa',
+        const _MainNavigationItem(
+          destination: NavigationDestination(
+            icon: Icon(Icons.notifications_outlined),
+            label: 'Arifa',
+          ),
+          screen: NotificationsScreen(),
+          moreItem: MoreNavigationItem(
+            icon: Icons.notifications_outlined,
+            title: 'Arifa',
+            subtitle: 'Taarifa za mabadiliko ya bei',
+            builder: _buildNotificationsScreen,
+          ),
         ),
       if (canSeeAdmin)
-        const NavigationDestination(
-          icon: Icon(Icons.admin_panel_settings_outlined),
-          label: 'Admin',
+        _MainNavigationItem(
+          destination: const NavigationDestination(
+            icon: Icon(Icons.admin_panel_settings_outlined),
+            label: 'Admin',
+          ),
+          screen: AdminScreen(permissions: permissions),
+          moreItem: MoreNavigationItem(
+            icon: Icons.admin_panel_settings_outlined,
+            title: 'Admin',
+            subtitle: 'Watumiaji, roles na ruhusa',
+            builder: (_) => AdminScreen(permissions: permissions),
+          ),
         ),
+    ];
+
+    final visibleItems = primaryItems.take(4).toList();
+    final overflowItems = primaryItems.skip(4).toList();
+    final destinations = <NavigationDestination>[
+      ...visibleItems.map((item) => item.destination),
       const NavigationDestination(
         icon: Icon(Icons.more_horiz),
         selectedIcon: Icon(Icons.more),
@@ -201,31 +295,9 @@ class _MainScreenState extends State<MainScreen> {
     ];
 
     final tabs = <Widget>[
-      HomeScreen(
-        role: role,
-        filteredMarkets: filteredMarkets,
-        permissions: permissions,
-        onMarketTap: _showMarketDetails,
-      ),
-      MarketsScreen(
-        markets: filteredMarkets,
-        selectedCropFilter: selectedCropFilter,
-        searchController: _searchController,
-        searchQuery: searchQuery,
-        onSearchChanged: (value) => setState(() => searchQuery = value),
-        onClearSearch: () {
-          setState(() {
-            _searchController.clear();
-            searchQuery = '';
-          });
-        },
-        onFilterChanged: (value) => setState(() => selectedCropFilter = value),
-        onMarketTap: _showMarketDetails,
-      ),
-      if (canSeePriceTools) const MarketPricesScreen(),
-      if (canSeeNotifications) const NotificationsScreen(),
-      if (canSeeAdmin) AdminScreen(permissions: permissions),
+      ...visibleItems.map((item) => item.screen),
       MoreScreen(
+        extraItems: overflowItems.map((item) => item.moreItem).toList(),
         name: fullName,
         email: user?['email']?.toString() ?? 'Hakuna barua pepe',
         phoneNumber: _readPhoneNumber(user),
@@ -612,6 +684,26 @@ class _PricePanel extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MainNavigationItem {
+  const _MainNavigationItem({
+    required this.destination,
+    required this.screen,
+    required this.moreItem,
+  });
+
+  final NavigationDestination destination;
+  final Widget screen;
+  final MoreNavigationItem moreItem;
+}
+
+Widget _buildMarketPricesScreen(BuildContext context) {
+  return const Scaffold(body: MarketPricesScreen());
+}
+
+Widget _buildNotificationsScreen(BuildContext context) {
+  return const Scaffold(body: NotificationsScreen());
 }
 
 class _Bar extends StatelessWidget {
