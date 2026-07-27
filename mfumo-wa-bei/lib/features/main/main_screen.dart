@@ -6,6 +6,7 @@ import '../../core/network/public_api_models.dart';
 import '../../core/widgets/mfumo_app_bar.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/home/home_screen.dart';
+import '../../features/listings/listings_screen.dart';
 import '../../features/main/more_screen.dart';
 import '../../features/market_prices/market_prices_screen.dart';
 import '../../features/markets/markets_screen.dart';
@@ -222,6 +223,19 @@ class _MainScreenState extends State<MainScreen> {
                 MarketPricesScreen(prices: dashboard.latestCommodityPrices),
           ),
         ),
+      const _MainNavigationItem(
+        destination: NavigationDestination(
+          icon: Icon(Icons.shopping_bag_outlined),
+          label: 'Bidhaa',
+        ),
+        screen: ListingsScreen(),
+        moreItem: MoreNavigationItem(
+          icon: Icons.shopping_bag_outlined,
+          title: 'Bidhaa',
+          subtitle: 'Bidhaa zinazopatikana sokoni',
+          builder: _buildListingsScreen,
+        ),
+      ),
       if (canSeeNotifications)
         const _MainNavigationItem(
           destination: NavigationDestination(
@@ -235,10 +249,11 @@ class _MainScreenState extends State<MainScreen> {
             subtitle: 'Taarifa za mabadiliko ya bei',
             builder: _buildNotificationsScreen,
           ),
+          primary: false,
         ),
       if (canSeeOrders)
         _MainNavigationItem(
-          destination: const NavigationDestination(
+          destination: NavigationDestination(
             icon: Icon(Icons.receipt_long_outlined),
             label: 'Oda',
           ),
@@ -268,8 +283,14 @@ class _MainScreenState extends State<MainScreen> {
         ),
     ];
 
-    final visibleItems = primaryItems.take(4).toList();
-    final overflowItems = primaryItems.skip(4).toList();
+    final visibleItems = primaryItems
+        .where((item) => item.primary)
+        .take(4)
+        .toList();
+    final overflowItems = [
+      ...primaryItems.where((item) => !item.primary),
+      ...primaryItems.where((item) => item.primary).skip(4),
+    ];
     final destinations = <NavigationDestination>[
       ...visibleItems.map((item) => item.destination),
       const NavigationDestination(
@@ -807,11 +828,17 @@ class _MainNavigationItem {
     required this.destination,
     required this.screen,
     required this.moreItem,
+    this.primary = true,
   });
 
   final NavigationDestination destination;
   final Widget screen;
   final MoreNavigationItem moreItem;
+  final bool primary;
+}
+
+Widget _buildListingsScreen(BuildContext context) {
+  return const Scaffold(body: ListingsScreen());
 }
 
 Widget _buildNotificationsScreen(BuildContext context) {
