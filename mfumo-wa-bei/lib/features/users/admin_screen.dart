@@ -35,6 +35,7 @@ class AdminScreen extends StatelessWidget {
           protected: true,
           primaryField: 'name',
           secondaryFields: ['code', 'permissions.length'],
+          type: _AdminModuleType.roles,
         ),
       if (permissions.contains('permissions.list'))
         const _AdminModule(
@@ -45,6 +46,7 @@ class AdminScreen extends StatelessWidget {
           protected: true,
           primaryField: 'name',
           secondaryFields: ['code', 'description'],
+          type: _AdminModuleType.permissions,
         ),
       if (_hasAny([
         'areas.create',
@@ -151,7 +153,7 @@ class _AdminModule {
   final _AdminModuleType type;
 }
 
-enum _AdminModuleType { generic, users }
+enum _AdminModuleType { generic, users, roles, permissions }
 
 class _AdminItem extends StatelessWidget {
   const _AdminItem({required this.module, required this.token});
@@ -254,15 +256,7 @@ class _AdminModuleScreenState extends State<_AdminModuleScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.module.title)),
-      floatingActionButton:
-          widget.module.type == _AdminModuleType.users &&
-              widget.permissions.contains('users.create')
-          ? FloatingActionButton.extended(
-              onPressed: _showCreateUser,
-              icon: const Icon(Icons.person_add_alt_1),
-              label: const Text('User'),
-            )
-          : null,
+      floatingActionButton: _buildFab(),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _future,
         builder: (context, snapshot) {
@@ -299,6 +293,12 @@ class _AdminModuleScreenState extends State<_AdminModuleScreen> {
                       widget.module.type == _AdminModuleType.users &&
                           widget.permissions.contains('users.read')
                       ? () => _openUserDetail(row)
+                      : widget.module.type == _AdminModuleType.roles &&
+                            widget.permissions.contains('roles.read')
+                      ? () => _openRoleDetail(row)
+                      : widget.module.type == _AdminModuleType.permissions &&
+                            widget.permissions.contains('permissions.read')
+                      ? () => _openPermissionDetail(row)
                       : null,
                 );
               },
@@ -307,6 +307,26 @@ class _AdminModuleScreenState extends State<_AdminModuleScreen> {
         },
       ),
     );
+  }
+
+  Widget? _buildFab() {
+    if (widget.module.type == _AdminModuleType.users &&
+        widget.permissions.contains('users.create')) {
+      return FloatingActionButton.extended(
+        onPressed: _showCreateUser,
+        icon: const Icon(Icons.person_add_alt_1),
+        label: const Text('User'),
+      );
+    }
+    if (widget.module.type == _AdminModuleType.roles &&
+        widget.permissions.contains('roles.create')) {
+      return FloatingActionButton.extended(
+        onPressed: _showCreateRole,
+        icon: const Icon(Icons.add_moderator_outlined),
+        label: const Text('Role'),
+      );
+    }
+    return null;
   }
 
   Future<void> _openUserDetail(Map<String, dynamic> row) async {
@@ -338,6 +358,58 @@ class _AdminModuleScreenState extends State<_AdminModuleScreen> {
         onSubmit: (body) => _apiService.protectedCreate(
           token: widget.token,
           path: '/users',
+          body: body,
+        ),
+      ),
+    );
+    if (created == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _openRoleDetail(Map<String, dynamic> row) async {
+    final roleId = row['role_id']?.toString() ?? row['code']?.toString();
+    if (roleId == null || roleId.isEmpty) {
+      return;
+    }
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _RoleDetailScreen(
+          token: widget.token,
+          roleId: roleId,
+          permissions: widget.permissions,
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _openPermissionDetail(Map<String, dynamic> row) async {
+    final permissionId = row['permission_id']?.toString();
+    if (permissionId == null || permissionId.isEmpty) {
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _PermissionDetailScreen(
+          token: widget.token,
+          permissionId: permissionId,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showCreateRole() async {
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _RoleFormSheet(
+        onSubmit: (body) => _apiService.protectedCreate(
+          token: widget.token,
+          path: '/users/roles',
           body: body,
         ),
       ),
@@ -576,6 +648,507 @@ class _InfoTile extends StatelessWidget {
       subtitle: Text(value.isEmpty ? '-' : value),
     );
   }
+}
+
+class _RoleDetailScreen extends StatefulWidget {
+  const _RoleDetailScreen({
+    required this.token,
+    required this.roleId,
+    required this.permissions,
+  });
+
+  final String token;
+  final String roleId;
+  final Set<String> permissions;
+
+  @override
+  State<_RoleDetailScreen> createState() => _RoleDetailScreenState();
+}
+
+class _RoleDetailScreenState extends State<_RoleDetailScreen> {
+  final ApiService _apiService = ApiService();
+  late Future<Map<String, dynamic>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<Map<String, dynamic>> _load() {
+    return _apiService.protectedDetail(
+      token: widget.token,
+      path: '/users/roles/${widget.roleId}',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Role')),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return _ErrorState(
+              message: snapshot.error.toString(),
+              onRetry: () => setState(() => _future = _load()),
+            );
+          }
+          final role = snapshot.data ?? const <String, dynamic>{};
+          final assigned = role['permissions'] is List
+              ? role['permissions'] as List
+              : const [];
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+            children: [
+              _InfoTile(label: 'Name', value: _readValue(role, 'name')),
+              _InfoTile(label: 'Code', value: _readValue(role, 'code')),
+              _InfoTile(
+                label: 'Description',
+                value: _readValue(role, 'description', fallback: '-'),
+              ),
+              _InfoTile(
+                label: 'System role',
+                value: _readValue(role, 'is_system'),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Permissions',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              for (final permission
+                  in assigned.whereType<Map<String, dynamic>>())
+                _InfoTile(
+                  label: permission['code']?.toString() ?? 'Permission',
+                  value: permission['name']?.toString() ?? '',
+                ),
+              const SizedBox(height: 20),
+              if (widget.permissions.contains('roles.update'))
+                FilledButton.icon(
+                  onPressed: () => _edit(role),
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Edit role'),
+                ),
+              if (widget.permissions.contains('roles.permissions.update')) ...[
+                const SizedBox(height: 10),
+                FilledButton.icon(
+                  onPressed: () => _editPermissions(role),
+                  icon: const Icon(Icons.key_outlined),
+                  label: const Text('Update permissions'),
+                ),
+              ],
+              if (widget.permissions.contains('roles.delete')) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _delete,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Delete role'),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _edit(Map<String, dynamic> role) async {
+    final changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _RoleFormSheet(
+        role: role,
+        onSubmit: (body) => _apiService.protectedReplace(
+          token: widget.token,
+          path: '/users/roles/${widget.roleId}',
+          body: body,
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _editPermissions(Map<String, dynamic> role) async {
+    final changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _RolePermissionsSheet(
+        token: widget.token,
+        role: role,
+        roleId: widget.roleId,
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _future = _load());
+    }
+  }
+
+  Future<void> _delete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete role?'),
+        content: const Text('This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+    try {
+      await _apiService.protectedDelete(
+        token: widget.token,
+        path: '/users/roles/${widget.roleId}',
+      );
+      if (mounted) {
+        Navigator.of(context).pop(true);
+      }
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+}
+
+class _RoleFormSheet extends StatefulWidget {
+  const _RoleFormSheet({required this.onSubmit, this.role});
+
+  final Map<String, dynamic>? role;
+  final Future<Map<String, dynamic>> Function(Map<String, dynamic> body)
+  onSubmit;
+
+  @override
+  State<_RoleFormSheet> createState() => _RoleFormSheetState();
+}
+
+class _RoleFormSheetState extends State<_RoleFormSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _codeController;
+  late final TextEditingController _nameController;
+  late final TextEditingController _descriptionController;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final role = widget.role ?? const <String, dynamic>{};
+    _codeController = TextEditingController(text: _readValue(role, 'code'));
+    _nameController = TextEditingController(text: _readValue(role, 'name'));
+    _descriptionController = TextEditingController(
+      text: _readValue(role, 'description'),
+    );
+  }
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    _nameController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        8,
+        20,
+        MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              widget.role == null ? 'Create role' : 'Edit role',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 16),
+            _sheetField(_codeController, 'Code', enabled: !_isSubmitting),
+            _sheetField(_nameController, 'Name', enabled: !_isSubmitting),
+            _sheetField(
+              _descriptionController,
+              'Description',
+              enabled: !_isSubmitting,
+              required: false,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: FilledButton(
+                onPressed: _isSubmitting ? null : _submit,
+                child: Text(_isSubmitting ? 'Saving...' : 'Save'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    setState(() => _isSubmitting = true);
+    try {
+      await widget.onSubmit({
+        'code': _codeController.text.trim(),
+        'name': _nameController.text.trim(),
+        'description': _descriptionController.text.trim(),
+      });
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+}
+
+class _RolePermissionsSheet extends StatefulWidget {
+  const _RolePermissionsSheet({
+    required this.token,
+    required this.role,
+    required this.roleId,
+  });
+
+  final String token;
+  final Map<String, dynamic> role;
+  final String roleId;
+
+  @override
+  State<_RolePermissionsSheet> createState() => _RolePermissionsSheetState();
+}
+
+class _RolePermissionsSheetState extends State<_RolePermissionsSheet> {
+  final ApiService _apiService = ApiService();
+  late Future<List<Map<String, dynamic>>> _future;
+  late final Set<String> _selectedIds;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _apiService.protectedList(
+      token: widget.token,
+      path: '/users/permissions',
+    );
+    final ids = widget.role['permission_ids'];
+    _selectedIds = ids is List
+        ? ids.map((id) => id.toString()).toSet()
+        : <String>{};
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.85,
+      child: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return _ErrorState(
+              message: snapshot.error.toString(),
+              onRetry: () => setState(() {
+                _future = _apiService.protectedList(
+                  token: widget.token,
+                  path: '/users/permissions',
+                );
+              }),
+            );
+          }
+          final permissions = snapshot.data ?? const <Map<String, dynamic>>[];
+          return Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'Role permissions',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: permissions.length,
+                  itemBuilder: (context, index) {
+                    final permission = permissions[index];
+                    final id = permission['permission_id']?.toString() ?? '';
+                    return CheckboxListTile(
+                      value: _selectedIds.contains(id),
+                      onChanged: _isSubmitting
+                          ? null
+                          : (value) => setState(() {
+                              if (value == true) {
+                                _selectedIds.add(id);
+                              } else {
+                                _selectedIds.remove(id);
+                              }
+                            }),
+                      title: Text(permission['name']?.toString() ?? id),
+                      subtitle: Text(permission['code']?.toString() ?? ''),
+                    );
+                  },
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: FilledButton(
+                    onPressed: _isSubmitting ? null : _submit,
+                    child: Text(_isSubmitting ? 'Saving...' : 'Save'),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    setState(() => _isSubmitting = true);
+    try {
+      await _apiService.protectedUpdate(
+        token: widget.token,
+        path: '/users/roles/${widget.roleId}',
+        body: {'permission_ids': _selectedIds.toList()},
+      );
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+}
+
+class _PermissionDetailScreen extends StatefulWidget {
+  const _PermissionDetailScreen({
+    required this.token,
+    required this.permissionId,
+  });
+
+  final String token;
+  final String permissionId;
+
+  @override
+  State<_PermissionDetailScreen> createState() =>
+      _PermissionDetailScreenState();
+}
+
+class _PermissionDetailScreenState extends State<_PermissionDetailScreen> {
+  final ApiService _apiService = ApiService();
+  late Future<Map<String, dynamic>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _apiService.protectedDetail(
+      token: widget.token,
+      path: '/users/permissions/${widget.permissionId}',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Permission')),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return _ErrorState(
+              message: snapshot.error.toString(),
+              onRetry: () => setState(() {
+                _future = _apiService.protectedDetail(
+                  token: widget.token,
+                  path: '/users/permissions/${widget.permissionId}',
+                );
+              }),
+            );
+          }
+          final permission = snapshot.data ?? const <String, dynamic>{};
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+            children: [
+              _InfoTile(label: 'Name', value: _readValue(permission, 'name')),
+              _InfoTile(label: 'Code', value: _readValue(permission, 'code')),
+              _InfoTile(
+                label: 'Description',
+                value: _readValue(permission, 'description', fallback: '-'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+Widget _sheetField(
+  TextEditingController controller,
+  String label, {
+  bool enabled = true,
+  bool required = true,
+}) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: TextFormField(
+      controller: controller,
+      enabled: enabled,
+      decoration: InputDecoration(labelText: label),
+      validator: required
+          ? (value) => value == null || value.trim().isEmpty ? 'Required' : null
+          : null,
+    ),
+  );
 }
 
 class _UserFormSheet extends StatefulWidget {

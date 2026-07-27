@@ -220,5 +220,60 @@ void main() {
       ]);
       expect(authHeaders.toSet(), {'Bearer admin-token'});
     });
+
+    test('supports protected role and permission detail endpoints', () async {
+      final methods = <String>[];
+      final paths = <String>[];
+      final service = ApiService(
+        client: MockClient((request) async {
+          methods.add(request.method);
+          paths.add(request.url.path);
+          return http.Response(
+            request.method == 'DELETE'
+                ? '{"success":true}'
+                : '{"data":{"role_id":"r1","permission_id":"p1","name":"Admin"}}',
+            200,
+          );
+        }),
+      );
+
+      await service.protectedCreate(
+        token: 'admin-token',
+        path: '/users/roles',
+        body: {'code': 'manager', 'name': 'Manager'},
+      );
+      await service.protectedDetail(
+        token: 'admin-token',
+        path: '/users/roles/r1',
+      );
+      await service.protectedReplace(
+        token: 'admin-token',
+        path: '/users/roles/r1',
+        body: {'code': 'manager', 'name': 'Manager'},
+      );
+      await service.protectedUpdate(
+        token: 'admin-token',
+        path: '/users/roles/r1',
+        body: {'permission_ids': <String>[]},
+      );
+      await service.protectedDelete(
+        token: 'admin-token',
+        path: '/users/roles/r1',
+      );
+      await service.protectedDetail(
+        token: 'admin-token',
+        path: '/users/permissions/p1',
+      );
+
+      expect(methods, ['POST', 'GET', 'PUT', 'PATCH', 'DELETE', 'GET']);
+      expect(paths, [
+        endsWith('/users/roles'),
+        endsWith('/users/roles/r1'),
+        endsWith('/users/roles/r1'),
+        endsWith('/users/roles/r1'),
+        endsWith('/users/roles/r1'),
+        endsWith('/users/permissions/p1'),
+      ]);
+    });
   });
 }
