@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-class AccountPage extends StatelessWidget {
-  const AccountPage({
+class AccountScreen extends StatelessWidget {
+  const AccountScreen({
     super.key,
     required this.name,
     required this.email,

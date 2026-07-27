@@ -3,18 +3,18 @@ import 'package:flutter/material.dart';
 import '../../../../core/network/api_service.dart';
 import '../../utils/auth_validators.dart';
 import '../widgets/auth_widgets.dart';
-import 'login_page.dart';
+import 'login_screen.dart';
 
-class RegisterPage extends StatefulWidget {
-  const RegisterPage({super.key});
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
 
   static const routeName = '/register';
 
   @override
-  State<RegisterPage> createState() => _RegisterPageState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterPageState extends State<RegisterPage> {
+class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _fullNameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -67,7 +67,7 @@ class _RegisterPageState extends State<RegisterPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Usajili umefanikiwa. Sasa ingia.')),
       );
-      Navigator.pushReplacementNamed(context, LoginPage.routeName);
+      Navigator.pushReplacementNamed(context, LoginScreen.routeName);
     } on ApiException catch (error) {
       if (!mounted) {
         return;
@@ -98,7 +98,7 @@ class _RegisterPageState extends State<RegisterPage> {
           children: [
             const SizedBox(height: 4),
             const Center(
-              child: PageTitleBlock(
+              child: ScreenTitleBlock(
                 title: 'Jisajili',
                 subtitle: 'Unda akaunti mpya',
               ),
@@ -212,7 +212,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   onTap: () {
                     Navigator.pushReplacementNamed(
                       context,
-                      LoginPage.routeName,
+                      LoginScreen.routeName,
                     );
                   },
                   child: const Text(

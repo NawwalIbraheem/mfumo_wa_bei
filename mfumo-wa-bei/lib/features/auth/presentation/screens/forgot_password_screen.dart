@@ -4,16 +4,16 @@ import '../../../../core/network/api_service.dart';
 import '../../utils/auth_validators.dart';
 import '../widgets/auth_widgets.dart';
 
-class ForgotPasswordPage extends StatefulWidget {
-  const ForgotPasswordPage({super.key});
+class ForgotPasswordScreen extends StatefulWidget {
+  const ForgotPasswordScreen({super.key});
 
   static const routeName = '/forgot-password';
 
   @override
-  State<ForgotPasswordPage> createState() => _ForgotPasswordPageState();
+  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
 }
 
-class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
+class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _identifierController = TextEditingController();
   final _apiService = ApiService();
@@ -78,7 +78,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           children: [
             const SizedBox(height: 4),
             const Center(
-              child: PageTitleBlock(
+              child: ScreenTitleBlock(
                 title: 'Umesahau nenosiri?',
                 subtitle: 'Pata msaada wa kurejesha akaunti yako.',
               ),

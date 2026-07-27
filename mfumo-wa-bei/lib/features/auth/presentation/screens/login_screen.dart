@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_service.dart';
-import '../../../../features/home/presentation/pages/home_page.dart';
+import '../../../../features/home/presentation/screens/home_screen.dart';
 import '../../utils/auth_validators.dart';
 import '../widgets/auth_widgets.dart';
-import 'forgot_password_page.dart';
-import 'register_page.dart';
+import 'forgot_password_screen.dart';
+import 'register_screen.dart';
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
 
   static const routeName = '/';
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -63,7 +63,7 @@ class _LoginPageState extends State<LoginPage> {
 
       Navigator.pushReplacementNamed(
         context,
-        HomePage.routeName,
+        HomeScreen.routeName,
         arguments: {'user': user, 'token': token},
       );
     } on ApiException catch (error) {
@@ -246,7 +246,10 @@ class _LoginPageState extends State<LoginPage> {
                 const Spacer(),
                 TextButton(
                   onPressed: () {
-                    Navigator.pushNamed(context, ForgotPasswordPage.routeName);
+                    Navigator.pushNamed(
+                      context,
+                      ForgotPasswordScreen.routeName,
+                    );
                   },
                   child: const Text(
                     'Umesahau nenosiri?',
@@ -279,7 +282,7 @@ class _LoginPageState extends State<LoginPage> {
             OutlineAuthButton(
               label: 'JISAJILI SASA',
               onPressed: () {
-                Navigator.pushNamed(context, RegisterPage.routeName);
+                Navigator.pushNamed(context, RegisterScreen.routeName);
               },
             ),
           ],

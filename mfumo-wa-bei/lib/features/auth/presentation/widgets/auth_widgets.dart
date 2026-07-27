@@ -194,8 +194,8 @@ class OutlineAuthButton extends StatelessWidget {
   }
 }
 
-class PageTitleBlock extends StatelessWidget {
-  const PageTitleBlock({
+class ScreenTitleBlock extends StatelessWidget {
+  const ScreenTitleBlock({
     super.key,
     required this.title,
     required this.subtitle,

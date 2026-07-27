@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'core/theme/app_theme.dart';
-import 'features/auth/presentation/pages/forgot_password_page.dart';
-import 'features/auth/presentation/pages/login_page.dart';
-import 'features/auth/presentation/pages/register_page.dart';
-import 'features/home/presentation/pages/home_page.dart';
+import 'features/auth/presentation/screens/forgot_password_screen.dart';
+import 'features/auth/presentation/screens/login_screen.dart';
+import 'features/auth/presentation/screens/register_screen.dart';
+import 'features/home/presentation/screens/home_screen.dart';
 
 class MfumoWaBeiApp extends StatelessWidget {
   const MfumoWaBeiApp({super.key});
@@ -15,12 +15,13 @@ class MfumoWaBeiApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Mfumo wa Bei',
       theme: AppTheme.light,
-      initialRoute: LoginPage.routeName,
+      initialRoute: LoginScreen.routeName,
       routes: {
-        LoginPage.routeName: (context) => const LoginPage(),
-        RegisterPage.routeName: (context) => const RegisterPage(),
-        ForgotPasswordPage.routeName: (context) => const ForgotPasswordPage(),
-        HomePage.routeName: (context) => const HomePage(),
+        LoginScreen.routeName: (context) => const LoginScreen(),
+        RegisterScreen.routeName: (context) => const RegisterScreen(),
+        ForgotPasswordScreen.routeName: (context) =>
+            const ForgotPasswordScreen(),
+        HomeScreen.routeName: (context) => const HomeScreen(),
       },
     );
   }

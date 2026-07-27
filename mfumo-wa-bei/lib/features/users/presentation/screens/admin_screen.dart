@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-class AdminPage extends StatelessWidget {
-  const AdminPage({super.key, required this.permissions});
+class AdminScreen extends StatelessWidget {
+  const AdminScreen({super.key, required this.permissions});
 
   final Set<String> permissions;
 

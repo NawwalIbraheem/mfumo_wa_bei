@@ -3,23 +3,23 @@ import 'package:flutter/material.dart';
 import '../../../../core/layouts/app_shell.dart';
 import '../../../../core/network/api_service.dart';
 import '../../../../core/widgets/mfumo_app_bar.dart';
-import '../../../../features/auth/presentation/pages/login_page.dart';
-import '../../../../features/market_prices/presentation/pages/market_prices_page.dart';
-import '../../../../features/markets/presentation/pages/markets_page.dart';
-import '../../../../features/notifications/presentation/pages/notifications_page.dart';
-import '../../../../features/users/presentation/pages/account_page.dart';
-import '../../../../features/users/presentation/pages/admin_page.dart';
+import '../../../../features/auth/presentation/screens/login_screen.dart';
+import '../../../../features/market_prices/presentation/screens/market_prices_screen.dart';
+import '../../../../features/markets/presentation/screens/markets_screen.dart';
+import '../../../../features/notifications/presentation/screens/notifications_screen.dart';
+import '../../../../features/users/presentation/screens/account_screen.dart';
+import '../../../../features/users/presentation/screens/admin_screen.dart';
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
 
   static const routeName = '/home';
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   final ApiService _apiService = ApiService();
 
@@ -205,7 +205,7 @@ class _HomePageState extends State<HomePage> {
         permissions: permissions,
         onMarketTap: _showMarketDetails,
       ),
-      MarketsPage(
+      MarketsScreen(
         markets: filteredMarkets,
         selectedCropFilter: selectedCropFilter,
         searchController: _searchController,
@@ -220,16 +220,16 @@ class _HomePageState extends State<HomePage> {
         onFilterChanged: (value) => setState(() => selectedCropFilter = value),
         onMarketTap: _showMarketDetails,
       ),
-      if (canSeePriceTools) const MarketPricesPage(),
-      if (canSeeNotifications) const NotificationsPage(),
-      if (canSeeAdmin) AdminPage(permissions: permissions),
-      AccountPage(
+      if (canSeePriceTools) const MarketPricesScreen(),
+      if (canSeeNotifications) const NotificationsScreen(),
+      if (canSeeAdmin) AdminScreen(permissions: permissions),
+      AccountScreen(
         name: fullName,
         email: user?['email']?.toString() ?? 'Hakuna barua pepe',
         phoneNumber: _readPhoneNumber(user),
         role: role,
         onLogout: () =>
-            Navigator.pushReplacementNamed(context, LoginPage.routeName),
+            Navigator.pushReplacementNamed(context, LoginScreen.routeName),
       ),
     ];
 
@@ -393,7 +393,7 @@ class _HomePageState extends State<HomePage> {
           FilledButton.icon(
             onPressed: () {
               Navigator.pop(context);
-              Navigator.pushReplacementNamed(context, LoginPage.routeName);
+              Navigator.pushReplacementNamed(context, LoginScreen.routeName);
             },
             icon: const Icon(Icons.logout),
             label: const Text('Ondoka'),

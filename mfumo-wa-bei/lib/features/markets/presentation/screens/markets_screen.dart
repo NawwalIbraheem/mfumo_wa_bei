@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-class MarketsPage extends StatelessWidget {
-  const MarketsPage({
+class MarketsScreen extends StatelessWidget {
+  const MarketsScreen({
     super.key,
     required this.markets,
     required this.selectedCropFilter,
