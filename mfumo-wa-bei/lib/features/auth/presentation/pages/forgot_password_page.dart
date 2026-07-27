@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../services/api_service.dart';
-import '../utils/auth_validators.dart';
+import '../../../../core/network/api_service.dart';
+import '../../utils/auth_validators.dart';
 import '../widgets/auth_widgets.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
@@ -56,9 +56,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
     } finally {
       if (mounted) {
         setState(() {

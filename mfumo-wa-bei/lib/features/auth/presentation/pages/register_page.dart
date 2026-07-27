@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../services/api_service.dart';
-import '../screens/login_page.dart';
-import '../utils/auth_validators.dart';
+import '../../../../core/network/api_service.dart';
+import '../../utils/auth_validators.dart';
 import '../widgets/auth_widgets.dart';
+import 'login_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -72,9 +72,9 @@ class _RegisterPageState extends State<RegisterPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
     } finally {
       if (mounted) {
         setState(() {
@@ -210,7 +210,10 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
                 GestureDetector(
                   onTap: () {
-                    Navigator.pushReplacementNamed(context, LoginPage.routeName);
+                    Navigator.pushReplacementNamed(
+                      context,
+                      LoginPage.routeName,
+                    );
                   },
                   child: const Text(
                     'Ingia hapa',

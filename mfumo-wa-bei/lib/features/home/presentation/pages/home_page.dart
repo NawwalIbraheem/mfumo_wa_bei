@@ -1,18 +1,25 @@
 import 'package:flutter/material.dart';
 
-import '../services/api_service.dart';
-import 'login_page.dart';
+import '../../../../core/layouts/app_shell.dart';
+import '../../../../core/network/api_service.dart';
+import '../../../../core/widgets/mfumo_app_bar.dart';
+import '../../../../features/auth/presentation/pages/login_page.dart';
+import '../../../../features/market_prices/presentation/pages/market_prices_page.dart';
+import '../../../../features/markets/presentation/pages/markets_page.dart';
+import '../../../../features/notifications/presentation/pages/notifications_page.dart';
+import '../../../../features/users/presentation/pages/account_page.dart';
+import '../../../../features/users/presentation/pages/admin_page.dart';
 
-class WelcomePage extends StatefulWidget {
-  const WelcomePage({super.key});
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
 
-  static const routeName = '/welcome';
+  static const routeName = '/home';
 
   @override
-  State<WelcomePage> createState() => _WelcomePageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
-class _WelcomePageState extends State<WelcomePage> {
+class _HomePageState extends State<HomePage> {
   final TextEditingController _searchController = TextEditingController();
   final ApiService _apiService = ApiService();
 
@@ -95,7 +102,8 @@ class _WelcomePageState extends State<WelcomePage> {
           final permissions = _readPermissions(snapshot.data ?? user);
           final role = _readRole(user);
 
-          if (snapshot.connectionState == ConnectionState.waiting && user == null) {
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              user == null) {
             return const Scaffold(
               backgroundColor: Color(0xFFF6F7F2),
               body: Center(child: CircularProgressIndicator()),
@@ -145,35 +153,63 @@ class _WelcomePageState extends State<WelcomePage> {
     required List<Map<String, dynamic>> filteredMarkets,
   }) {
     final fullName = _displayName(user);
-    final canCreateMarketPrice = permissions.isEmpty ||
+    final canCreateMarketPrice =
+        permissions.isEmpty ||
         permissions.contains('market_prices.create') ||
         permissions.contains('commodity_prices.create');
-    final canSeePriceTools = permissions.isEmpty ||
+    final canSeePriceTools =
+        permissions.isEmpty ||
         permissions.contains('market_prices.list') ||
         permissions.contains('commodity_prices.list') ||
         permissions.contains('commodity_prices.history');
-    final canSeeNotifications = permissions.isEmpty || permissions.contains('auth.me');
-    final canSeeAdmin = permissions.contains('users.list') ||
+    final canSeeNotifications =
+        permissions.isEmpty || permissions.contains('auth.me');
+    final canSeeAdmin =
+        permissions.contains('users.list') ||
         permissions.contains('roles.list') ||
         permissions.contains('permissions.list');
 
     final destinations = <NavigationDestination>[
-      const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Nyumbani'),
-      if (canSeePriceTools) const NavigationDestination(icon: Icon(Icons.show_chart), label: 'Bei'),
-      if (canSeeNotifications) const NavigationDestination(icon: Icon(Icons.notifications_outlined), label: 'Arifa'),
-      if (canSeeAdmin) const NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), label: 'Admin'),
-      const NavigationDestination(icon: Icon(Icons.person_outline), label: 'Akaunti'),
+      const NavigationDestination(
+        icon: Icon(Icons.home_outlined),
+        selectedIcon: Icon(Icons.home),
+        label: 'Nyumbani',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.storefront_outlined),
+        selectedIcon: Icon(Icons.storefront),
+        label: 'Masoko',
+      ),
+      if (canSeePriceTools)
+        const NavigationDestination(icon: Icon(Icons.show_chart), label: 'Bei'),
+      if (canSeeNotifications)
+        const NavigationDestination(
+          icon: Icon(Icons.notifications_outlined),
+          label: 'Arifa',
+        ),
+      if (canSeeAdmin)
+        const NavigationDestination(
+          icon: Icon(Icons.admin_panel_settings_outlined),
+          label: 'Admin',
+        ),
+      const NavigationDestination(
+        icon: Icon(Icons.person_outline),
+        label: 'Akaunti',
+      ),
     ];
 
     final tabs = <Widget>[
       _HomeTab(
-        fullName: fullName,
         role: role,
         filteredMarkets: filteredMarkets,
+        permissions: permissions,
+        onMarketTap: _showMarketDetails,
+      ),
+      MarketsPage(
+        markets: filteredMarkets,
         selectedCropFilter: selectedCropFilter,
         searchController: _searchController,
         searchQuery: searchQuery,
-        permissions: permissions,
         onSearchChanged: (value) => setState(() => searchQuery = value),
         onClearSearch: () {
           setState(() {
@@ -183,26 +219,17 @@ class _WelcomePageState extends State<WelcomePage> {
         },
         onFilterChanged: (value) => setState(() => selectedCropFilter = value),
         onMarketTap: _showMarketDetails,
-        onProfileTap: () => _showProfileDialog(user),
       ),
-      if (canSeePriceTools)
-        const _SimpleTab(
-          icon: Icons.show_chart,
-          title: 'Mwenendo',
-          subtitle: 'Grafu za bei zitaonekana hapa baada ya kuunganisha API.',
-        ),
-      if (canSeeNotifications)
-        const _SimpleTab(
-          icon: Icons.notifications_outlined,
-          title: 'Taarifa',
-          subtitle: 'Arifa za mabadiliko ya bei na masoko mapya.',
-        ),
-      if (canSeeAdmin)
-        _AdminTab(permissions: permissions),
-      const _SimpleTab(
-        icon: Icons.person_outline,
-        title: 'Akaunti',
-        subtitle: 'Wasifu, mipangilio na kutoka kwenye akaunti.',
+      if (canSeePriceTools) const MarketPricesPage(),
+      if (canSeeNotifications) const NotificationsPage(),
+      if (canSeeAdmin) AdminPage(permissions: permissions),
+      AccountPage(
+        name: fullName,
+        email: user?['email']?.toString() ?? 'Hakuna barua pepe',
+        phoneNumber: _readPhoneNumber(user),
+        role: role,
+        onLogout: () =>
+            Navigator.pushReplacementNamed(context, LoginPage.routeName),
       ),
     ];
 
@@ -211,14 +238,19 @@ class _WelcomePageState extends State<WelcomePage> {
       selectedTab = safeSelectedTab;
     }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF6F7F2),
-      body: SafeArea(
-        child: IndexedStack(
-          index: safeSelectedTab,
-          children: tabs,
-        ),
+    return AppShell(
+      appBar: MfumoAppBar(
+        title: 'Mfumo wa Bei',
+        subtitle: 'Karibu, $fullName',
+        showLogo: true,
+        actions: [
+          IconButton(
+            onPressed: () => _showProfileDialog(user),
+            icon: const Icon(Icons.account_circle_outlined),
+          ),
+        ],
       ),
+      body: IndexedStack(index: safeSelectedTab, children: tabs),
       floatingActionButton: safeSelectedTab == 0 && canCreateMarketPrice
           ? FloatingActionButton.extended(
               onPressed: _showReportPriceBottomSheet,
@@ -226,7 +258,10 @@ class _WelcomePageState extends State<WelcomePage> {
               icon: const Icon(Icons.add_chart_outlined, color: Colors.white),
               label: const Text(
                 'Ripoti Bei',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             )
           : null,
@@ -247,7 +282,8 @@ class _WelcomePageState extends State<WelcomePage> {
     _loadedRouteArgs = true;
 
     final args = ModalRoute.of(context)?.settings.arguments;
-    if (args is Map<String, dynamic> && (args.containsKey('user') || args.containsKey('token'))) {
+    if (args is Map<String, dynamic> &&
+        (args.containsKey('user') || args.containsKey('token'))) {
       final user = args['user'];
       _routeUser = user is Map<String, dynamic> ? user : null;
       _token = args['token']?.toString();
@@ -291,6 +327,14 @@ class _WelcomePageState extends State<WelcomePage> {
     return user?['role']?.toString() ?? 'user';
   }
 
+  String _readPhoneNumber(Map<String, dynamic>? user) {
+    final profile = user?['profile'];
+    final phoneNumber = profile is Map<String, dynamic>
+        ? profile['phone_number']?.toString()
+        : user?['phone_number']?.toString();
+    return phoneNumber ?? 'Hakuna namba ya simu';
+  }
+
   String _displayName(Map<String, dynamic>? user) {
     final fullName = user?['full_name']?.toString();
     if (fullName != null && fullName.trim().isNotEmpty) {
@@ -317,7 +361,10 @@ class _WelcomePageState extends State<WelcomePage> {
           children: [
             CircleAvatar(
               backgroundColor: const Color(0xFF0E7A3B),
-              child: Text(_initials(name), style: const TextStyle(color: Colors.white)),
+              child: Text(
+                _initials(name),
+                style: const TextStyle(color: Colors.white),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(child: Text(name, style: const TextStyle(fontSize: 18))),
@@ -327,13 +374,22 @@ class _WelcomePageState extends State<WelcomePage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _ProfileLine(icon: Icons.email_outlined, text: user?['email']?.toString() ?? 'Hakuna barua pepe'),
+            _ProfileLine(
+              icon: Icons.email_outlined,
+              text: user?['email']?.toString() ?? 'Hakuna barua pepe',
+            ),
             const SizedBox(height: 12),
-            _ProfileLine(icon: Icons.phone_outlined, text: phoneNumber ?? 'Hakuna namba ya simu'),
+            _ProfileLine(
+              icon: Icons.phone_outlined,
+              text: phoneNumber ?? 'Hakuna namba ya simu',
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Funga')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Funga'),
+          ),
           FilledButton.icon(
             onPressed: () {
               Navigator.pop(context);
@@ -361,25 +417,56 @@ class _WelcomePageState extends State<WelcomePage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(market['name'], style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+            Text(
+              market['name'],
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+            ),
             const SizedBox(height: 6),
             Row(
               children: [
-                const Icon(Icons.location_on_outlined, size: 18, color: Color(0xFF0E7A3B)),
+                const Icon(
+                  Icons.location_on_outlined,
+                  size: 18,
+                  color: Color(0xFF0E7A3B),
+                ),
                 const SizedBox(width: 6),
-                Expanded(child: Text(market['location'], style: const TextStyle(color: Color(0xFF6B7280)))),
+                Expanded(
+                  child: Text(
+                    market['location'],
+                    style: const TextStyle(color: Color(0xFF6B7280)),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 20),
             Row(
               children: [
-                Expanded(child: _PricePanel(label: 'Mchele', price: market['ricePrice'], change: market['riceChange'], icon: Icons.rice_bowl_outlined, color: const Color(0xFF0E7A3B))),
+                Expanded(
+                  child: _PricePanel(
+                    label: 'Mchele',
+                    price: market['ricePrice'],
+                    change: market['riceChange'],
+                    icon: Icons.rice_bowl_outlined,
+                    color: const Color(0xFF0E7A3B),
+                  ),
+                ),
                 const SizedBox(width: 12),
-                Expanded(child: _PricePanel(label: 'Maharage', price: market['beanPrice'], change: market['beanChange'], icon: Icons.grain_outlined, color: const Color(0xFFB45309))),
+                Expanded(
+                  child: _PricePanel(
+                    label: 'Maharage',
+                    price: market['beanPrice'],
+                    change: market['beanChange'],
+                    icon: Icons.grain_outlined,
+                    color: const Color(0xFFB45309),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 20),
-            const Text('Mwenendo wa wiki 4', style: TextStyle(fontWeight: FontWeight.w800)),
+            const Text(
+              'Mwenendo wa wiki 4',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
             const SizedBox(height: 12),
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -406,14 +493,25 @@ class _WelcomePageState extends State<WelcomePage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) => Padding(
-        padding: EdgeInsets.fromLTRB(20, 8, 20, MediaQuery.of(context).viewInsets.bottom + 24),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          8,
+          20,
+          MediaQuery.of(context).viewInsets.bottom + 24,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Ripoti Bei Mpya', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+            const Text(
+              'Ripoti Bei Mpya',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+            ),
             const SizedBox(height: 6),
-            const Text('Weka bei uliyoiona sokoni leo.', style: TextStyle(color: Color(0xFF6B7280))),
+            const Text(
+              'Weka bei uliyoiona sokoni leo.',
+              style: TextStyle(color: Color(0xFF6B7280)),
+            ),
             const SizedBox(height: 18),
             DropdownButtonFormField<String>(
               initialValue: 'Mchele',
@@ -427,10 +525,15 @@ class _WelcomePageState extends State<WelcomePage> {
             const SizedBox(height: 12),
             TextFormField(
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Bei kwa kilo', prefixText: 'TSh '),
+              decoration: const InputDecoration(
+                labelText: 'Bei kwa kilo',
+                prefixText: 'TSh ',
+              ),
             ),
             const SizedBox(height: 12),
-            TextFormField(decoration: const InputDecoration(labelText: 'Jina la soko')),
+            TextFormField(
+              decoration: const InputDecoration(labelText: 'Jina la soko'),
+            ),
             const SizedBox(height: 18),
             SizedBox(
               width: double.infinity,
@@ -448,59 +551,63 @@ class _WelcomePageState extends State<WelcomePage> {
 
   String _initials(String name) {
     final parts = name.trim().split(RegExp(r'\s+'));
-    return parts.take(2).map((part) => part.isEmpty ? '' : part[0]).join().toUpperCase();
+    return parts
+        .take(2)
+        .map((part) => part.isEmpty ? '' : part[0])
+        .join()
+        .toUpperCase();
   }
 }
 
 class _HomeTab extends StatelessWidget {
   const _HomeTab({
-    required this.fullName,
     required this.role,
     required this.filteredMarkets,
-    required this.selectedCropFilter,
-    required this.searchController,
-    required this.searchQuery,
     required this.permissions,
-    required this.onSearchChanged,
-    required this.onClearSearch,
-    required this.onFilterChanged,
     required this.onMarketTap,
-    required this.onProfileTap,
   });
 
-  final String fullName;
   final String role;
   final List<Map<String, dynamic>> filteredMarkets;
-  final String selectedCropFilter;
-  final TextEditingController searchController;
-  final String searchQuery;
   final Set<String> permissions;
-  final ValueChanged<String> onSearchChanged;
-  final VoidCallback onClearSearch;
-  final ValueChanged<String> onFilterChanged;
   final ValueChanged<Map<String, dynamic>> onMarketTap;
-  final VoidCallback onProfileTap;
 
   @override
   Widget build(BuildContext context) {
     return CustomScrollView(
       slivers: [
-        SliverToBoxAdapter(
-          child: _DashboardHeader(fullName: fullName, role: role, onProfileTap: onProfileTap),
-        ),
-        if (permissions.contains('users.list') || permissions.contains('markets.create') || permissions.contains('commodities.create'))
+        SliverToBoxAdapter(child: _DashboardIntro(role: role)),
+        if (permissions.contains('users.list') ||
+            permissions.contains('markets.create') ||
+            permissions.contains('commodities.create'))
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            sliver: SliverToBoxAdapter(child: _PermissionActions(permissions: permissions)),
+            sliver: SliverToBoxAdapter(
+              child: _PermissionActions(permissions: permissions),
+            ),
           ),
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
           sliver: SliverToBoxAdapter(
             child: Row(
               children: const [
-                Expanded(child: _SummaryCard(icon: Icons.rice_bowl_outlined, label: 'Mchele', value: 'TSh 2,400', trend: '+1.5%')),
+                Expanded(
+                  child: _SummaryCard(
+                    icon: Icons.rice_bowl_outlined,
+                    label: 'Mchele',
+                    value: 'TSh 2,400',
+                    trend: '+1.5%',
+                  ),
+                ),
                 SizedBox(width: 12),
-                Expanded(child: _SummaryCard(icon: Icons.grain_outlined, label: 'Maharage', value: 'TSh 3,100', trend: '0.0%')),
+                Expanded(
+                  child: _SummaryCard(
+                    icon: Icons.grain_outlined,
+                    label: 'Maharage',
+                    value: 'TSh 3,100',
+                    trend: '0.0%',
+                  ),
+                ),
               ],
             ),
           ),
@@ -511,27 +618,14 @@ class _HomeTab extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Masoko ya Morogoro', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: searchController,
-                  onChanged: onSearchChanged,
-                  decoration: InputDecoration(
-                    hintText: 'Tafuta soko au eneo...',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: searchQuery.isEmpty ? null : IconButton(onPressed: onClearSearch, icon: const Icon(Icons.close)),
-                  ),
+                const Text(
+                  'Masoko karibu nawe',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                 ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  children: ['Zote', 'Mchele', 'Maharage'].map((filter) {
-                    return ChoiceChip(
-                      label: Text(filter),
-                      selected: selectedCropFilter == filter,
-                      onSelected: (_) => onFilterChanged(filter),
-                    );
-                  }).toList(),
+                const SizedBox(height: 6),
+                const Text(
+                  'Muhtasari wa masoko yenye taarifa mpya za bei.',
+                  style: TextStyle(color: Color(0xFF6B7280)),
                 ),
               ],
             ),
@@ -540,13 +634,13 @@ class _HomeTab extends StatelessWidget {
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
           sliver: SliverList.separated(
-            itemCount: filteredMarkets.length,
+            itemCount: filteredMarkets.take(3).length,
             separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final market = filteredMarkets[index];
-              return _MarketCard(
+              return MarketCard(
                 market: market,
-                selectedCropFilter: selectedCropFilter,
+                selectedCropFilter: 'Zote',
                 onTap: () => onMarketTap(market),
               );
             },
@@ -557,17 +651,15 @@ class _HomeTab extends StatelessWidget {
   }
 }
 
-class _DashboardHeader extends StatelessWidget {
-  const _DashboardHeader({required this.fullName, required this.role, required this.onProfileTap});
+class _DashboardIntro extends StatelessWidget {
+  const _DashboardIntro({required this.role});
 
-  final String fullName;
   final String role;
-  final VoidCallback onProfileTap;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 24),
       decoration: const BoxDecoration(
         color: Color(0xFF0E7A3B),
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
@@ -575,25 +667,14 @@ class _DashboardHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Image.asset('lib/assets/images/logo.png', width: 44, height: 44),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text('Mfumo wa Bei', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
-              ),
-              IconButton(
-                onPressed: onProfileTap,
-                icon: const Icon(Icons.account_circle_outlined, color: Colors.white),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Text('Karibu, $fullName', style: const TextStyle(color: Colors.white70, fontSize: 14)),
-          const SizedBox(height: 6),
           const Text(
             'Bei za mchele na maharage karibu nawe',
-            style: TextStyle(color: Colors.white, fontSize: 25, fontWeight: FontWeight.w800, height: 1.18),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 25,
+              fontWeight: FontWeight.w800,
+              height: 1.18,
+            ),
           ),
           const SizedBox(height: 18),
           Row(
@@ -602,7 +683,10 @@ class _DashboardHeader extends StatelessWidget {
               const SizedBox(width: 10),
               const _HeaderPill(icon: Icons.update, text: 'Leo'),
               const SizedBox(width: 10),
-              _HeaderPill(icon: Icons.verified_user_outlined, text: role.toUpperCase()),
+              _HeaderPill(
+                icon: Icons.verified_user_outlined,
+                text: role.toUpperCase(),
+              ),
             ],
           ),
         ],
@@ -629,7 +713,13 @@ class _HeaderPill extends StatelessWidget {
         children: [
           Icon(icon, size: 16, color: Colors.white),
           const SizedBox(width: 6),
-          Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
@@ -637,7 +727,12 @@ class _HeaderPill extends StatelessWidget {
 }
 
 class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.icon, required this.label, required this.value, required this.trend});
+  const _SummaryCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.trend,
+  });
 
   final IconData icon;
   final String label;
@@ -658,11 +753,27 @@ class _SummaryCard extends StatelessWidget {
         children: [
           Icon(icon, color: const Color(0xFF0E7A3B)),
           const SizedBox(height: 12),
-          Text(label, style: const TextStyle(color: Color(0xFF6B7280), fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF6B7280),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+          ),
           const SizedBox(height: 4),
-          Text(trend, style: const TextStyle(color: Color(0xFF0E7A3B), fontWeight: FontWeight.w700, fontSize: 12)),
+          Text(
+            trend,
+            style: const TextStyle(
+              color: Color(0xFF0E7A3B),
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
         ],
       ),
     );
@@ -690,7 +801,10 @@ class _PermissionActions extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Vitendo vya haraka', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        const Text(
+          'Vitendo vya haraka',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+        ),
         const SizedBox(height: 10),
         SizedBox(
           height: 86,
@@ -727,97 +841,10 @@ class _ActionItem extends StatelessWidget {
         children: [
           Icon(icon, color: const Color(0xFF0E7A3B)),
           const Spacer(),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-        ],
-      ),
-    );
-  }
-}
-
-class _MarketCard extends StatelessWidget {
-  const _MarketCard({required this.market, required this.selectedCropFilter, required this.onTap});
-
-  final Map<String, dynamic> market;
-  final String selectedCropFilter;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(market['name'], style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                  ),
-                  Text(market['distance'], style: const TextStyle(color: Color(0xFF6B7280), fontSize: 12)),
-                ],
-              ),
-              const SizedBox(height: 5),
-              Text(market['location'], style: const TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  if (selectedCropFilter == 'Zote' || selectedCropFilter == 'Mchele')
-                    Expanded(child: _CropPrice(label: 'Mchele', price: market['ricePrice'], trend: market['riceTrend'])),
-                  if (selectedCropFilter == 'Zote') const SizedBox(width: 12),
-                  if (selectedCropFilter == 'Zote' || selectedCropFilter == 'Maharage')
-                    Expanded(child: _CropPrice(label: 'Maharage', price: market['beanPrice'], trend: market['beanTrend'])),
-                ],
-              ),
-            ],
+          Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CropPrice extends StatelessWidget {
-  const _CropPrice({required this.label, required this.price, required this.trend});
-
-  final String label;
-  final int price;
-  final String trend;
-
-  @override
-  Widget build(BuildContext context) {
-    final icon = trend == 'up'
-        ? Icons.arrow_upward
-        : trend == 'down'
-            ? Icons.arrow_downward
-            : Icons.trending_flat;
-    final color = trend == 'down' ? Colors.red : const Color(0xFF0E7A3B);
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF9FAFB),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(label == 'Mchele' ? Icons.rice_bowl_outlined : Icons.grain_outlined, size: 20, color: color),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
-                Text('TSh $price', style: const TextStyle(fontWeight: FontWeight.w800)),
-              ],
-            ),
-          ),
-          Icon(icon, size: 16, color: color),
         ],
       ),
     );
@@ -825,7 +852,13 @@ class _CropPrice extends StatelessWidget {
 }
 
 class _PricePanel extends StatelessWidget {
-  const _PricePanel({required this.label, required this.price, required this.change, required this.icon, required this.color});
+  const _PricePanel({
+    required this.label,
+    required this.price,
+    required this.change,
+    required this.icon,
+    required this.color,
+  });
 
   final String label;
   final int price;
@@ -846,9 +879,25 @@ class _PricePanel extends StatelessWidget {
         children: [
           Icon(icon, color: color),
           const SizedBox(height: 10),
-          Text(label, style: const TextStyle(color: Color(0xFF6B7280), fontWeight: FontWeight.w600)),
-          Text('TSh $price', style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.w800)),
-          Text(change, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF6B7280),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(
+            'TSh $price',
+            style: TextStyle(
+              color: color,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          Text(
+            change,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
         ],
       ),
     );
@@ -874,83 +923,9 @@ class _Bar extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-      ],
-    );
-  }
-}
-
-class _SimpleTab extends StatelessWidget {
-  const _SimpleTab({required this.icon, required this.title, required this.subtitle});
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 48, color: const Color(0xFF0E7A3B)),
-            const SizedBox(height: 16),
-            Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            Text(subtitle, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF6B7280))),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AdminTab extends StatelessWidget {
-  const _AdminTab({required this.permissions});
-
-  final Set<String> permissions;
-
-  @override
-  Widget build(BuildContext context) {
-    final items = <_ActionItem>[
-      if (permissions.contains('users.list'))
-        const _ActionItem(icon: Icons.group_outlined, label: 'Users'),
-      if (permissions.contains('roles.list'))
-        const _ActionItem(icon: Icons.badge_outlined, label: 'Roles'),
-      if (permissions.contains('permissions.list'))
-        const _ActionItem(icon: Icons.key_outlined, label: 'Permissions'),
-      if (permissions.contains('areas.list'))
-        const _ActionItem(icon: Icons.map_outlined, label: 'Areas'),
-      if (permissions.contains('markets.list'))
-        const _ActionItem(icon: Icons.storefront_outlined, label: 'Markets'),
-      if (permissions.contains('commodities.list'))
-        const _ActionItem(icon: Icons.inventory_2_outlined, label: 'Commodities'),
-    ];
-
-    return CustomScrollView(
-      slivers: [
-        const SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(20, 24, 20, 12),
-            child: Text('Admin', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          sliver: SliverGrid(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) => items[index],
-              childCount: items.length,
-            ),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1.45,
-            ),
-          ),
+        Text(
+          label,
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
         ),
       ],
     );

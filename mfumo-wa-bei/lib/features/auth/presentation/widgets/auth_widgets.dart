@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/layouts/auth_shell.dart';
+
 class AuthLayout extends StatelessWidget {
   const AuthLayout({
     super.key,
@@ -14,27 +16,7 @@ class AuthLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (showBack)
-                IconButton(
-                  onPressed: onBack ?? () => Navigator.of(context).maybePop(),
-                  icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-                  color: const Color(0xFF0E7A3B),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              child,
-            ],
-          ),
-        ),
-      ),
-    );
+    return AuthShell(showBack: showBack, onBack: onBack, child: child);
   }
 }
 
@@ -57,10 +39,7 @@ class AuthLogoBadge extends StatelessWidget {
         ),
       ),
       padding: const EdgeInsets.all(14),
-      child: Image.asset(
-        'lib/assets/images/logo.png',
-        fit: BoxFit.contain,
-      ),
+      child: Image.asset('lib/assets/images/logo.png', fit: BoxFit.contain),
     );
   }
 }
@@ -122,23 +101,22 @@ class _AuthTextFieldState extends State<AuthTextField> {
       decoration: InputDecoration(
         hintText: widget.hintText,
         prefixIcon: Icon(widget.icon, color: const Color(0xFF6B7280), size: 20),
-        suffixIcon:
-            widget.obscureText
-                ? IconButton(
-                  onPressed: () {
-                    setState(() {
-                      _isObscured = !_isObscured;
-                    });
-                  },
-                  icon: Icon(
-                    _isObscured
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined,
-                    size: 20,
-                    color: const Color(0xFF6B7280),
-                  ),
-                )
-                : widget.suffixIcon,
+        suffixIcon: widget.obscureText
+            ? IconButton(
+                onPressed: () {
+                  setState(() {
+                    _isObscured = !_isObscured;
+                  });
+                },
+                icon: Icon(
+                  _isObscured
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  size: 20,
+                  color: const Color(0xFF6B7280),
+                ),
+              )
+            : widget.suffixIcon,
       ),
     );
   }

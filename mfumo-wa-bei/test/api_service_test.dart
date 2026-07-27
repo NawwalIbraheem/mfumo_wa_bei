@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:mfumo_wa_bei/services/api_service.dart';
+import 'package:mfumo_wa_bei/core/network/api_service.dart';
 
 void main() {
   group('ApiService', () {
@@ -70,7 +70,6 @@ void main() {
       expect(data['user_id'], 'WZr2JsT5Kn');
       expect(data['permissions'], ['auth.me']);
     });
-
 
     test('sends username and international phone number on register', () async {
       late final Map<String, dynamic> requestBody;

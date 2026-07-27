@@ -14,8 +14,7 @@ class ApiConfig {
       _env('API_BASE_URL') ?? 'http://10.0.2.2:8000/api/v1';
 
   /// The current app environment ("development" or "production").
-  static String get appEnv =>
-      _env('APP_ENV') ?? 'development';
+  static String get appEnv => _env('APP_ENV') ?? 'development';
 
   /// Whether the app is running in production mode.
   static bool get isProduction => appEnv == 'production';
@@ -25,6 +24,5 @@ class ApiConfig {
       (_env('APP_DEBUG') ?? 'true').toLowerCase() == 'true';
 
   /// App display name (e.g. "Mfumo wa Bei" or "Mfumo wa Bei (Dev)").
-  static String get appName =>
-      _env('APP_NAME') ?? 'Mfumo wa Bei';
+  static String get appName => _env('APP_NAME') ?? 'Mfumo wa Bei';
 }

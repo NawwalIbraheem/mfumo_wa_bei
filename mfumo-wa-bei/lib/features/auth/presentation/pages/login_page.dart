@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../services/api_service.dart';
-import '../screens/forgot_password_page.dart';
-import '../screens/register_page.dart';
-import '../screens/welcome_page.dart';
-import '../utils/auth_validators.dart';
+import '../../../../core/network/api_service.dart';
+import '../../../../features/home/presentation/pages/home_page.dart';
+import '../../utils/auth_validators.dart';
 import '../widgets/auth_widgets.dart';
+import 'forgot_password_page.dart';
+import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -52,31 +52,27 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       final user = data['user'] as Map<String, dynamic>?;
-      final fullName = user?['full_name']?.toString() ??
+      final fullName =
+          user?['full_name']?.toString() ??
           '${user?['first_name'] ?? ''} ${user?['last_name'] ?? ''}'.trim();
       final token = _readToken(data);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Karibu $fullName. Umeingia kwa mafanikio.'),
-        ),
+        SnackBar(content: Text('Karibu $fullName. Umeingia kwa mafanikio.')),
       );
 
       Navigator.pushReplacementNamed(
         context,
-        WelcomePage.routeName,
-        arguments: {
-          'user': user,
-          'token': token,
-        },
+        HomePage.routeName,
+        arguments: {'user': user, 'token': token},
       );
     } on ApiException catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
     } finally {
       if (mounted) {
         setState(() {
@@ -195,10 +191,7 @@ class _LoginPageState extends State<LoginPage> {
                     ],
                   ),
                 ),
-                const Positioned(
-                  bottom: -55,
-                  child: AuthLogoBadge(size: 118),
-                ),
+                const Positioned(bottom: -55, child: AuthLogoBadge(size: 118)),
               ],
             ),
             const SizedBox(height: 72),
@@ -248,10 +241,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(width: 10),
                 const Text(
                   'Nikumbuke',
-                  style: TextStyle(
-                    color: Color(0xFF4B5563),
-                    fontSize: 13,
-                  ),
+                  style: TextStyle(color: Color(0xFF4B5563), fontSize: 13),
                 ),
                 const Spacer(),
                 TextButton(
