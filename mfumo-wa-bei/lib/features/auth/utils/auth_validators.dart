@@ -112,4 +112,16 @@ class AuthValidators {
     }
     return null;
   }
+
+  static String? verificationCode(String? value) {
+    final requiredError = required(value, 'Kodi ya uthibitisho');
+    if (requiredError != null) {
+      return requiredError;
+    }
+
+    if (!RegExp(r'^\d{6}$').hasMatch(value!.trim())) {
+      return 'Weka kodi ya tarakimu 6.';
+    }
+    return null;
+  }
 }

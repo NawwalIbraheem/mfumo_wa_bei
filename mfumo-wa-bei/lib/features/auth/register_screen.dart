@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/network/api_service.dart';
 import 'utils/auth_validators.dart';
 import 'widgets/auth_widgets.dart';
+import 'email_verification_screen.dart';
 import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -65,9 +66,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Usajili umefanikiwa. Sasa ingia.')),
+        const SnackBar(
+          content: Text('Usajili umefanikiwa. Weka kodi ya uthibitisho.'),
+        ),
       );
-      Navigator.pushReplacementNamed(context, LoginScreen.routeName);
+      Navigator.pushReplacementNamed(
+        context,
+        EmailVerificationScreen.routeName,
+        arguments: {'email': _emailController.text.trim()},
+      );
     } on ApiException catch (error) {
       if (!mounted) {
         return;

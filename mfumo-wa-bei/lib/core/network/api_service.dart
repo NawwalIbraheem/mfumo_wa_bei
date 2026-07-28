@@ -173,6 +173,24 @@ class ApiService {
     return _extractData(response);
   }
 
+  Future<Map<String, dynamic>> verifyEmail({
+    required String email,
+    required String code,
+  }) async {
+    final response = await _post('/auth/email/verify', {
+      'email': email.trim(),
+      'code': code.trim(),
+    });
+    return _extractData(response);
+  }
+
+  Future<Map<String, dynamic>> resendEmailVerification({
+    required String email,
+  }) async {
+    final response = await _post('/auth/email/resend', {'email': email.trim()});
+    return _extractData(response);
+  }
+
   Future<MarketPriceRecord> createMarketPrice({
     required String token,
     required String marketId,
