@@ -564,6 +564,7 @@ class _MainScreenState extends State<MainScreen> {
                   child: _PricePanel(
                     label: 'Mchele',
                     price: market['ricePrice'],
+                    priceLabel: market['ricePriceLabel']?.toString() ?? '-',
                     change: market['riceChange'],
                     icon: Icons.rice_bowl_outlined,
                     color: const Color(0xFF0E7A3B),
@@ -574,6 +575,7 @@ class _MainScreenState extends State<MainScreen> {
                   child: _PricePanel(
                     label: 'Maharage',
                     price: market['beanPrice'],
+                    priceLabel: market['beanPriceLabel']?.toString() ?? '-',
                     change: market['beanChange'],
                     icon: Icons.grain_outlined,
                     color: const Color(0xFFB45309),
@@ -618,7 +620,8 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
 
-    final priceController = TextEditingController();
+    final minPriceController = TextEditingController();
+    final maxPriceController = TextEditingController();
     var selectedMarket = dashboard.markets.first;
     var selectedCommodity = dashboard.commodities.first;
     var isSubmitting = false;
@@ -648,7 +651,7 @@ class _MainScreenState extends State<MainScreen> {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Weka bei uliyoiona sokoni leo.',
+                'Weka kiwango cha chini na cha juu cha bei uliyoiona sokoni leo.',
                 style: TextStyle(color: Color(0xFF6B7280)),
               ),
               const SizedBox(height: 18),
@@ -689,11 +692,21 @@ class _MainScreenState extends State<MainScreen> {
               ),
               const SizedBox(height: 12),
               TextFormField(
-                controller: priceController,
+                controller: minPriceController,
                 enabled: !isSubmitting,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                  labelText: 'Bei',
+                  labelText: 'Bei ya chini',
+                  prefixText: 'TSh ',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: maxPriceController,
+                enabled: !isSubmitting,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Bei ya juu',
                   prefixText: 'TSh ',
                 ),
               ),
@@ -705,11 +718,18 @@ class _MainScreenState extends State<MainScreen> {
                   onPressed: isSubmitting
                       ? null
                       : () async {
-                          final price = priceController.text.trim();
+                          final minPrice = minPriceController.text.trim();
+                          final maxPrice = maxPriceController.text.trim();
+                          final price = _representativePrice(
+                            minPrice,
+                            maxPrice,
+                          );
                           if (price.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Weka bei kabla ya kutuma.'),
+                                content: Text(
+                                  'Weka bei ya chini au bei ya juu kabla ya kutuma.',
+                                ),
                               ),
                             );
                             return;
@@ -721,6 +741,8 @@ class _MainScreenState extends State<MainScreen> {
                               marketId: selectedMarket.id,
                               commodityId: selectedCommodity.id,
                               price: price,
+                              minPrice: minPrice,
+                              maxPrice: maxPrice,
                               priceDate: DateTime.now()
                                   .toIso8601String()
                                   .split('T')
@@ -774,6 +796,7 @@ class _PricePanel extends StatelessWidget {
   const _PricePanel({
     required this.label,
     required this.price,
+    required this.priceLabel,
     required this.change,
     required this.icon,
     required this.color,
@@ -781,6 +804,7 @@ class _PricePanel extends StatelessWidget {
 
   final String label;
   final int price;
+  final String priceLabel;
   final String change;
   final IconData icon;
   final Color color;
@@ -806,7 +830,7 @@ class _PricePanel extends StatelessWidget {
             ),
           ),
           Text(
-            'TSh $price',
+            priceLabel == '-' ? 'TSh $price' : priceLabel,
             style: TextStyle(
               color: color,
               fontSize: 18,
@@ -843,6 +867,15 @@ Widget _buildListingsScreen(BuildContext context) {
 
 Widget _buildNotificationsScreen(BuildContext context) {
   return const Scaffold(body: NotificationsScreen());
+}
+
+String _representativePrice(String minPrice, String maxPrice) {
+  final minValue = double.tryParse(minPrice.replaceAll(',', '').trim());
+  final maxValue = double.tryParse(maxPrice.replaceAll(',', '').trim());
+  if (minValue != null && maxValue != null) {
+    return ((minValue + maxValue) / 2).round().toString();
+  }
+  return (minValue ?? maxValue)?.round().toString() ?? '';
 }
 
 class _Bar extends StatelessWidget {

@@ -179,12 +179,18 @@ class ApiService {
     required String commodityId,
     required String price,
     required String priceDate,
+    String? minPrice,
+    String? maxPrice,
     String currency = 'TZS',
   }) async {
     final response = await _post('/market-prices', {
       'market_id': marketId,
       'commodity_id': commodityId,
       'price': price,
+      if (minPrice != null && minPrice.trim().isNotEmpty)
+        'min_price': minPrice.trim(),
+      if (maxPrice != null && maxPrice.trim().isNotEmpty)
+        'max_price': maxPrice.trim(),
       'currency': currency,
       'price_date': priceDate,
     }, token: token);

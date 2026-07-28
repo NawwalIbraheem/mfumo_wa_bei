@@ -2947,7 +2947,7 @@ class _PriceAdminTile extends StatelessWidget {
       ),
       subtitle: Text(_readValue(price, 'price_date', fallback: '-')),
       trailing: Text(
-        '${_readValue(price, 'currency', fallback: 'TZS')} ${_readValue(price, 'price', fallback: '-')}',
+        _formatMarketPrice(price),
         style: const TextStyle(fontWeight: FontWeight.w800),
       ),
     );
@@ -3012,7 +3012,15 @@ class _MarketPriceDetailScreenState extends State<_MarketPriceDetailScreen> {
                 label: 'Market',
                 value: _readValue(price, 'market.name', fallback: '-'),
               ),
-              _InfoTile(label: 'Price', value: _readValue(price, 'price')),
+              _InfoTile(label: 'Price', value: _formatMarketPrice(price)),
+              _InfoTile(
+                label: 'Min price',
+                value: _readValue(price, 'min_price', fallback: '-'),
+              ),
+              _InfoTile(
+                label: 'Max price',
+                value: _readValue(price, 'max_price', fallback: '-'),
+              ),
               _InfoTile(
                 label: 'Currency',
                 value: _readValue(price, 'currency', fallback: 'TZS'),
@@ -3117,6 +3125,8 @@ class _MarketPriceFormSheetState extends State<_MarketPriceFormSheet> {
   final ApiService _apiService = ApiService();
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _priceController;
+  late final TextEditingController _minPriceController;
+  late final TextEditingController _maxPriceController;
   late final TextEditingController _currencyController;
   late final TextEditingController _dateController;
   late Future<List<Map<String, dynamic>>> _commoditiesFuture;
@@ -3128,6 +3138,12 @@ class _MarketPriceFormSheetState extends State<_MarketPriceFormSheet> {
     super.initState();
     final price = widget.price ?? const <String, dynamic>{};
     _priceController = TextEditingController(text: _readValue(price, 'price'));
+    _minPriceController = TextEditingController(
+      text: _readValue(price, 'min_price'),
+    );
+    _maxPriceController = TextEditingController(
+      text: _readValue(price, 'max_price'),
+    );
     _currencyController = TextEditingController(
       text: _readValue(price, 'currency', fallback: 'TZS'),
     );
@@ -3148,6 +3164,8 @@ class _MarketPriceFormSheetState extends State<_MarketPriceFormSheet> {
   @override
   void dispose() {
     _priceController.dispose();
+    _minPriceController.dispose();
+    _maxPriceController.dispose();
     _currencyController.dispose();
     _dateController.dispose();
     super.dispose();
@@ -3213,7 +3231,24 @@ class _MarketPriceFormSheetState extends State<_MarketPriceFormSheet> {
                       : (value) => setState(() => _selectedCommodityId = value),
                 ),
                 const SizedBox(height: 12),
-                _sheetField(_priceController, 'Price', enabled: !_isSubmitting),
+                _sheetField(
+                  _minPriceController,
+                  'Min price',
+                  enabled: !_isSubmitting,
+                  required: false,
+                ),
+                _sheetField(
+                  _maxPriceController,
+                  'Max price',
+                  enabled: !_isSubmitting,
+                  required: false,
+                ),
+                _sheetField(
+                  _priceController,
+                  'Representative price',
+                  enabled: !_isSubmitting,
+                  required: false,
+                ),
                 _sheetField(
                   _currencyController,
                   'Currency',
@@ -3243,11 +3278,25 @@ class _MarketPriceFormSheetState extends State<_MarketPriceFormSheet> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    final minPrice = _minPriceController.text.trim();
+    final maxPrice = _maxPriceController.text.trim();
+    var price = _priceController.text.trim();
+    if (price.isEmpty) {
+      price = _representativePrice(minPrice, maxPrice);
+    }
+    if (price.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter price, min price, or max price.')),
+      );
+      return;
+    }
     setState(() => _isSubmitting = true);
     try {
       await widget.onSubmit({
         'commodity_id': _selectedCommodityId,
-        'price': _priceController.text.trim(),
+        'price': price,
+        if (minPrice.isNotEmpty) 'min_price': minPrice,
+        if (maxPrice.isNotEmpty) 'max_price': maxPrice,
         'currency': _currencyController.text.trim(),
         'price_date': _dateController.text.trim(),
       });
@@ -4411,4 +4460,50 @@ String _readValue(
   }
   final text = value.toString().trim();
   return text.isEmpty ? fallback : text;
+}
+
+String _formatMarketPrice(Map<String, dynamic> price) {
+  final currency = _readValue(price, 'currency', fallback: 'TZS');
+  final minPrice = _readNumber(price['min_price']);
+  final maxPrice = _readNumber(price['max_price']);
+  if (minPrice != null && maxPrice != null) {
+    if (minPrice.round() == maxPrice.round()) {
+      return '$currency ${_formatNumber(minPrice)}';
+    }
+    return '$currency ${_formatNumber(minPrice)} - ${_formatNumber(maxPrice)}';
+  }
+  final fallback = minPrice ?? maxPrice ?? _readNumber(price['price']);
+  if (fallback == null) {
+    return '$currency -';
+  }
+  return '$currency ${_formatNumber(fallback)}';
+}
+
+String _representativePrice(String minPrice, String maxPrice) {
+  final minValue = _readNumber(minPrice);
+  final maxValue = _readNumber(maxPrice);
+  if (minValue != null && maxValue != null) {
+    return ((minValue + maxValue) / 2).round().toString();
+  }
+  return (minValue ?? maxValue)?.round().toString() ?? '';
+}
+
+double? _readNumber(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+  return double.tryParse(value.toString().replaceAll(',', '').trim());
+}
+
+String _formatNumber(double value) {
+  final text = value.round().toString();
+  final buffer = StringBuffer();
+  for (var i = 0; i < text.length; i++) {
+    final remaining = text.length - i;
+    buffer.write(text[i]);
+    if (remaining > 1 && remaining % 3 == 1) {
+      buffer.write(',');
+    }
+  }
+  return buffer.toString();
 }
