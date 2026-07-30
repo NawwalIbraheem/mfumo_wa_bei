@@ -30,6 +30,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
     return _apiService.protectedList(token: widget.token, path: '/orders');
   }
 
+  Future<void> _refresh() async {
+    final future = _load();
+    setState(() => _future = future);
+    await future;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -47,33 +53,41 @@ class _OrdersScreenState extends State<OrdersScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return _ErrorState(
-              message: snapshot.error.toString(),
-              onRetry: () => setState(() => _future = _load()),
+            return RefreshIndicator(
+              onRefresh: _refresh,
+              child: _ErrorState(
+                message: snapshot.error.toString(),
+                onRetry: _refresh,
+              ),
             );
           }
 
           final orders = snapshot.data ?? const <Map<String, dynamic>>[];
-          if (orders.isEmpty) {
-            return const Center(child: Text('Hakuna oda kwa sasa.'));
-          }
-
           return RefreshIndicator(
-            onRefresh: () async {
-              setState(() => _future = _load());
-              await _future;
-            },
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
-              itemCount: orders.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (context, index) => _OrderTile(
-                order: orders[index],
-                onTap: widget.permissions.contains('orders.read')
-                    ? () => _openOrder(orders[index])
-                    : null,
-              ),
-            ),
+            onRefresh: _refresh,
+            child: orders.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
+                    children: [
+                      SizedBox(
+                        height: MediaQuery.sizeOf(context).height * 0.32,
+                      ),
+                      const Center(child: Text('Hakuna oda kwa sasa.')),
+                    ],
+                  )
+                : ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
+                    itemCount: orders.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) => _OrderTile(
+                      order: orders[index],
+                      onTap: widget.permissions.contains('orders.read')
+                          ? () => _openOrder(orders[index])
+                          : null,
+                    ),
+                  ),
           );
         },
       ),
@@ -182,6 +196,12 @@ class _OrderDetailScreenState extends State<_OrderDetailScreen> {
     );
   }
 
+  Future<void> _refresh() async {
+    final future = _load();
+    setState(() => _future = future);
+    await future;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -193,36 +213,43 @@ class _OrderDetailScreenState extends State<_OrderDetailScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return _ErrorState(
-              message: snapshot.error.toString(),
-              onRetry: () => setState(() => _future = _load()),
+            return RefreshIndicator(
+              onRefresh: _refresh,
+              child: _ErrorState(
+                message: snapshot.error.toString(),
+                onRetry: _refresh,
+              ),
             );
           }
           final order = snapshot.data ?? const <String, dynamic>{};
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
-            children: [
-              _InfoTile(label: 'Listing', value: _orderTitle(order)),
-              _InfoTile(
-                label: 'Quantity',
-                value: order['quantity']?.toString() ?? '-',
-              ),
-              _InfoTile(
-                label: 'Total',
-                value: order['total_price']?.toString() ?? '-',
-              ),
-              _InfoTile(
-                label: 'Status',
-                value: order['status']?.toString() ?? '-',
-              ),
-              const SizedBox(height: 20),
-              if (widget.permissions.contains('orders.update'))
-                FilledButton.icon(
-                  onPressed: () => _edit(order),
-                  icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Update order'),
+          return RefreshIndicator(
+            onRefresh: _refresh,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+              children: [
+                _InfoTile(label: 'Listing', value: _orderTitle(order)),
+                _InfoTile(
+                  label: 'Quantity',
+                  value: order['quantity']?.toString() ?? '-',
                 ),
-            ],
+                _InfoTile(
+                  label: 'Total',
+                  value: order['total_price']?.toString() ?? '-',
+                ),
+                _InfoTile(
+                  label: 'Status',
+                  value: order['status']?.toString() ?? '-',
+                ),
+                const SizedBox(height: 20),
+                if (widget.permissions.contains('orders.update'))
+                  FilledButton.icon(
+                    onPressed: () => _edit(order),
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Update order'),
+                  ),
+              ],
+            ),
           );
         },
       ),
@@ -245,7 +272,10 @@ class _OrderDetailScreenState extends State<_OrderDetailScreen> {
       ),
     );
     if (changed == true && mounted) {
-      setState(() => _future = _load());
+      await _refresh();
+      if (!mounted) {
+        return;
+      }
       Navigator.of(context).pop(true);
     }
   }
@@ -309,9 +339,11 @@ class _OrderFormSheetState extends State<_OrderFormSheet> {
           if (snapshot.hasError) {
             return _ErrorState(
               message: snapshot.error.toString(),
-              onRetry: () => setState(() {
-                _listingsFuture = _apiService.publicList('/listings');
-              }),
+              onRetry: () async {
+                final future = _apiService.publicList('/listings');
+                setState(() => _listingsFuture = future);
+                await future;
+              },
             );
           }
           final listings = snapshot.data ?? const <Map<String, dynamic>>[];
@@ -433,26 +465,31 @@ class _ErrorState extends StatelessWidget {
   const _ErrorState({required this.message, required this.onRetry});
 
   final String message;
-  final VoidCallback onRetry;
+  final Future<void> Function() onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Jaribu tena'),
-            ),
-          ],
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
+      children: [
+        SizedBox(height: MediaQuery.sizeOf(context).height * 0.28),
+        Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(message, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: () => onRetry(),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Jaribu tena'),
+              ),
+            ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }

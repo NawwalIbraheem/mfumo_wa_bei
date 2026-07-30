@@ -9,88 +9,94 @@ class HomeScreen extends StatelessWidget {
     required this.filteredMarkets,
     required this.permissions,
     required this.onMarketTap,
+    required this.onRefresh,
   });
 
   final String role;
   final List<Map<String, dynamic>> filteredMarkets;
   final Set<String> permissions;
   final ValueChanged<Map<String, dynamic>> onMarketTap;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(child: _DashboardIntro(role: role)),
-        if (permissions.contains('users.list') ||
-            permissions.contains('markets.create') ||
-            permissions.contains('commodities.create'))
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(child: _DashboardIntro(role: role)),
+          if (permissions.contains('users.list') ||
+              permissions.contains('markets.create') ||
+              permissions.contains('commodities.create'))
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              sliver: SliverToBoxAdapter(
+                child: _PermissionActions(permissions: permissions),
+              ),
+            ),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
             sliver: SliverToBoxAdapter(
-              child: _PermissionActions(permissions: permissions),
-            ),
-          ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
-          sliver: SliverToBoxAdapter(
-            child: Row(
-              children: const [
-                Expanded(
-                  child: _SummaryCard(
-                    icon: Icons.rice_bowl_outlined,
-                    label: 'Mchele',
-                    value: 'TSh 2,400',
-                    trend: '+1.5%',
+              child: Row(
+                children: const [
+                  Expanded(
+                    child: _SummaryCard(
+                      icon: Icons.rice_bowl_outlined,
+                      label: 'Mchele',
+                      value: 'TSh 2,400',
+                      trend: '+1.5%',
+                    ),
                   ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: _SummaryCard(
-                    icon: Icons.grain_outlined,
-                    label: 'Maharage',
-                    value: 'TSh 3,100',
-                    trend: '0.0%',
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: _SummaryCard(
+                      icon: Icons.grain_outlined,
+                      label: 'Maharage',
+                      value: 'TSh 3,100',
+                      trend: '0.0%',
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 22, 16, 10),
-          sliver: SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'Masoko karibu nawe',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                ),
-                SizedBox(height: 6),
-                Text(
-                  'Muhtasari wa masoko yenye taarifa mpya za bei.',
-                  style: TextStyle(color: Color(0xFF6B7280)),
-                ),
-              ],
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 22, 16, 10),
+            sliver: SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Masoko karibu nawe',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    'Muhtasari wa masoko yenye taarifa mpya za bei.',
+                    style: TextStyle(color: Color(0xFF6B7280)),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
-          sliver: SliverList.separated(
-            itemCount: filteredMarkets.take(3).length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final market = filteredMarkets[index];
-              return MarketCard(
-                market: market,
-                selectedCropFilter: 'Zote',
-                onTap: () => onMarketTap(market),
-              );
-            },
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
+            sliver: SliverList.separated(
+              itemCount: filteredMarkets.take(3).length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final market = filteredMarkets[index];
+                return MarketCard(
+                  market: market,
+                  selectedCropFilter: 'Zote',
+                  onTap: () => onMarketTap(market),
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

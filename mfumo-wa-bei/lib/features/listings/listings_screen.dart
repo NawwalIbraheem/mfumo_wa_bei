@@ -23,6 +23,12 @@ class _ListingsScreenState extends State<ListingsScreen> {
     return _apiService.publicList('/listings');
   }
 
+  Future<void> _refresh() async {
+    final future = _load();
+    setState(() => _future = future);
+    await future;
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Map<String, dynamic>>>(
@@ -32,44 +38,50 @@ class _ListingsScreenState extends State<ListingsScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return Center(
-            child: Padding(
+          return RefreshIndicator(
+            onRefresh: _refresh,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(snapshot.error.toString(), textAlign: TextAlign.center),
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: () => setState(() => _future = _load()),
+              children: [
+                SizedBox(height: MediaQuery.sizeOf(context).height * 0.28),
+                Text(snapshot.error.toString(), textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                Center(
+                  child: FilledButton.icon(
+                    onPressed: _refresh,
                     icon: const Icon(Icons.refresh),
                     label: const Text('Jaribu tena'),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           );
         }
 
         final listings = snapshot.data ?? const <Map<String, dynamic>>[];
-        if (listings.isEmpty) {
-          return const Center(child: Text('Hakuna bidhaa kwa sasa.'));
-        }
 
         return RefreshIndicator(
-          onRefresh: () async {
-            setState(() => _future = _load());
-            await _future;
-          },
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
-            itemCount: listings.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, index) => _ListingTile(
-              listing: listings[index],
-              onTap: () => _showListingDetails(listings[index]),
-            ),
-          ),
+          onRefresh: _refresh,
+          child: listings.isEmpty
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
+                  children: [
+                    SizedBox(height: MediaQuery.sizeOf(context).height * 0.32),
+                    const Center(child: Text('Hakuna bidhaa kwa sasa.')),
+                  ],
+                )
+              : ListView.separated(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
+                  itemCount: listings.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) => _ListingTile(
+                    listing: listings[index],
+                    onTap: () => _showListingDetails(listings[index]),
+                  ),
+                ),
         );
       },
     );

@@ -11,6 +11,7 @@ class MarketsScreen extends StatelessWidget {
     required this.onClearSearch,
     required this.onFilterChanged,
     required this.onMarketTap,
+    required this.onRefresh,
   });
 
   final List<Map<String, dynamic>> markets;
@@ -21,72 +22,77 @@ class MarketsScreen extends StatelessWidget {
   final VoidCallback onClearSearch;
   final ValueChanged<String> onFilterChanged;
   final ValueChanged<Map<String, dynamic>> onMarketTap;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
-          sliver: SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Masoko ya Morogoro',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Linganishia bei za mchele na maharage kwenye masoko yaliyo karibu.',
-                  style: TextStyle(color: Color(0xFF6B7280)),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: searchController,
-                  onChanged: onSearchChanged,
-                  decoration: InputDecoration(
-                    hintText: 'Tafuta soko au eneo...',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: searchQuery.isEmpty
-                        ? null
-                        : IconButton(
-                            onPressed: onClearSearch,
-                            icon: const Icon(Icons.close),
-                          ),
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
+            sliver: SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Masoko ya Morogoro',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  children: ['Zote', 'Mchele', 'Maharage'].map((filter) {
-                    return ChoiceChip(
-                      label: Text(filter),
-                      selected: selectedCropFilter == filter,
-                      onSelected: (_) => onFilterChanged(filter),
-                    );
-                  }).toList(),
-                ),
-              ],
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Linganishia bei za mchele na maharage kwenye masoko yaliyo karibu.',
+                    style: TextStyle(color: Color(0xFF6B7280)),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: searchController,
+                    onChanged: onSearchChanged,
+                    decoration: InputDecoration(
+                      hintText: 'Tafuta soko au eneo...',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: searchQuery.isEmpty
+                          ? null
+                          : IconButton(
+                              onPressed: onClearSearch,
+                              icon: const Icon(Icons.close),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    children: ['Zote', 'Mchele', 'Maharage'].map((filter) {
+                      return ChoiceChip(
+                        label: Text(filter),
+                        selected: selectedCropFilter == filter,
+                        onSelected: (_) => onFilterChanged(filter),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
-          sliver: SliverList.separated(
-            itemCount: markets.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final market = markets[index];
-              return MarketCard(
-                market: market,
-                selectedCropFilter: selectedCropFilter,
-                onTap: () => onMarketTap(market),
-              );
-            },
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
+            sliver: SliverList.separated(
+              itemCount: markets.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final market = markets[index];
+                return MarketCard(
+                  market: market,
+                  selectedCropFilter: selectedCropFilter,
+                  onTap: () => onMarketTap(market),
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

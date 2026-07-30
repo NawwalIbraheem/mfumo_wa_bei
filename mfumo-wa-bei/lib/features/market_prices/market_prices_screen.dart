@@ -3,49 +3,58 @@ import 'package:flutter/material.dart';
 import '../../core/network/public_api_models.dart';
 
 class MarketPricesScreen extends StatelessWidget {
-  const MarketPricesScreen({super.key, required this.prices});
+  const MarketPricesScreen({
+    super.key,
+    required this.prices,
+    required this.onRefresh,
+  });
 
   final List<MarketPriceRecord> prices;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      slivers: [
-        const SliverPadding(
-          padding: EdgeInsets.fromLTRB(20, 24, 20, 12),
-          sliver: SliverToBoxAdapter(
-            child: Text(
-              'Mwenendo wa Bei',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          const SliverPadding(
+            padding: EdgeInsets.fromLTRB(20, 24, 20, 12),
+            sliver: SliverToBoxAdapter(
+              child: Text(
+                'Mwenendo wa Bei',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+              ),
             ),
           ),
-        ),
-        if (prices.isEmpty)
-          const SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(child: Text('Hakuna taarifa za bei kwa sasa.')),
-          )
-        else
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            sliver: SliverList.separated(
-              itemCount: prices.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final price = prices[index];
-                return _PriceTrendCard(
-                  commodity: price.commodityName,
-                  currentPrice: price.formattedPrice,
-                  change: price.formattedDate,
-                  market: price.marketName,
-                  icon: price.commodityName.toLowerCase().contains('mchele')
-                      ? Icons.rice_bowl_outlined
-                      : Icons.grain_outlined,
-                );
-              },
+          if (prices.isEmpty)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: Text('Hakuna taarifa za bei kwa sasa.')),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverList.separated(
+                itemCount: prices.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final price = prices[index];
+                  return _PriceTrendCard(
+                    commodity: price.commodityName,
+                    currentPrice: price.formattedPrice,
+                    change: price.formattedDate,
+                    market: price.marketName,
+                    icon: price.commodityName.toLowerCase().contains('mchele')
+                        ? Icons.rice_bowl_outlined
+                        : Icons.grain_outlined,
+                  );
+                },
+              ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }

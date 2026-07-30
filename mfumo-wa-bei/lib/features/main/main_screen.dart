@@ -151,6 +151,7 @@ class _MainScreenState extends State<MainScreen> {
           filteredMarkets: filteredMarkets,
           permissions: permissions,
           onMarketTap: _showMarketDetails,
+          onRefresh: _refreshData,
         ),
         moreItem: MoreNavigationItem(
           icon: Icons.home_outlined,
@@ -161,6 +162,7 @@ class _MainScreenState extends State<MainScreen> {
             filteredMarkets: filteredMarkets,
             permissions: permissions,
             onMarketTap: _showMarketDetails,
+            onRefresh: _refreshData,
           ),
         ),
       ),
@@ -185,6 +187,7 @@ class _MainScreenState extends State<MainScreen> {
           onFilterChanged: (value) =>
               setState(() => selectedCropFilter = value),
           onMarketTap: _showMarketDetails,
+          onRefresh: _refreshData,
         ),
         moreItem: MoreNavigationItem(
           icon: Icons.storefront_outlined,
@@ -205,6 +208,7 @@ class _MainScreenState extends State<MainScreen> {
             onFilterChanged: (value) =>
                 setState(() => selectedCropFilter = value),
             onMarketTap: _showMarketDetails,
+            onRefresh: _refreshData,
           ),
         ),
       ),
@@ -214,13 +218,18 @@ class _MainScreenState extends State<MainScreen> {
             icon: Icon(Icons.show_chart),
             label: 'Bei',
           ),
-          screen: MarketPricesScreen(prices: dashboard.latestCommodityPrices),
+          screen: MarketPricesScreen(
+            prices: dashboard.latestCommodityPrices,
+            onRefresh: _refreshData,
+          ),
           moreItem: MoreNavigationItem(
             icon: Icons.show_chart,
             title: 'Bei',
             subtitle: 'Mwenendo wa bei za mchele na maharage',
-            builder: (_) =>
-                MarketPricesScreen(prices: dashboard.latestCommodityPrices),
+            builder: (_) => MarketPricesScreen(
+              prices: dashboard.latestCommodityPrices,
+              onRefresh: _refreshData,
+            ),
           ),
         ),
       const _MainNavigationItem(
@@ -413,6 +422,25 @@ class _MainScreenState extends State<MainScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _refreshData() async {
+    final dashboardFuture = _apiService.publicDashboard();
+    final meFuture = _token != null && _token!.isNotEmpty
+        ? _apiService.me(token: _token!)
+        : null;
+
+    setState(() {
+      _dashboardFuture = dashboardFuture;
+      if (meFuture != null) {
+        _meFuture = meFuture;
+      }
+    });
+
+    await Future.wait<dynamic>([
+      dashboardFuture,
+      if (meFuture != null) meFuture,
+    ]);
   }
 
   Map<String, dynamic>? _readUser(Map<String, dynamic>? data) {
