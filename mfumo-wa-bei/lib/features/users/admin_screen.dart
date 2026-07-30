@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/network/api_service.dart';
+import '../../core/widgets/searchable_select.dart';
 
 class AdminScreen extends StatelessWidget {
   const AdminScreen({
@@ -2204,6 +2205,11 @@ class _AreaFormSheetState extends State<_AreaFormSheet> {
                     widget.area?['area_id']?.toString(),
               )
               .toList();
+          final selectedParent = _parentId == null
+              ? null
+              : parentOptions
+                    .where((area) => area['area_id']?.toString() == _parentId)
+                    .firstOrNull;
           return Form(
             key: _formKey,
             child: ListView(
@@ -2243,27 +2249,20 @@ class _AreaFormSheetState extends State<_AreaFormSheet> {
                         }),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _parentId,
-                  decoration: const InputDecoration(labelText: 'Parent'),
-                  items: [
-                    const DropdownMenuItem(value: '', child: Text('None')),
-                    ...parentOptions.map(
-                      (area) => DropdownMenuItem(
-                        value: area['area_id']?.toString(),
-                        child: Text(
-                          '${area['name'] ?? ''} (${area['level'] ?? ''})',
-                        ),
-                      ),
-                    ),
-                  ],
-                  onChanged: _isSubmitting || _level == 'region'
-                      ? null
-                      : (value) => setState(() {
-                          _parentId = value == null || value.isEmpty
-                              ? null
-                              : value;
-                        }),
+                SearchableSelectFormField<Map<String, dynamic>>(
+                  labelText: 'Parent',
+                  value: selectedParent,
+                  items: parentOptions,
+                  itemLabel: _areaLabel,
+                  itemSubtitle: _areaSubtitle,
+                  leadingIcon: Icons.map_outlined,
+                  enabled: !_isSubmitting && _level != 'region',
+                  hintText: 'None',
+                  searchHintText: 'Search parent area...',
+                  emptyText: 'No parent areas found.',
+                  clearable: true,
+                  onChanged: (value) =>
+                      setState(() => _parentId = value?['area_id']?.toString()),
                 ),
                 const SizedBox(height: 16),
                 SizedBox(
@@ -2660,6 +2659,13 @@ class _MarketFormSheetState extends State<_MarketFormSheet> {
           if (_selectedAreaId == null && areas.isNotEmpty) {
             _selectedAreaId = areas.first['area_id']?.toString();
           }
+          final selectedArea = _selectedAreaId == null
+              ? null
+              : areas
+                    .where(
+                      (area) => area['area_id']?.toString() == _selectedAreaId,
+                    )
+                    .firstOrNull;
 
           return Form(
             key: _formKey,
@@ -2687,24 +2693,20 @@ class _MarketFormSheetState extends State<_MarketFormSheet> {
                   enabled: !_isSubmitting,
                   required: false,
                 ),
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedAreaId,
-                  decoration: const InputDecoration(labelText: 'Area'),
-                  items: areas
-                      .map(
-                        (area) => DropdownMenuItem(
-                          value: area['area_id']?.toString(),
-                          child: Text(
-                            '${area['name'] ?? ''} (${area['level'] ?? ''})',
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  validator: (value) =>
-                      value == null || value.isEmpty ? 'Required' : null,
-                  onChanged: _isSubmitting
-                      ? null
-                      : (value) => setState(() => _selectedAreaId = value),
+                SearchableSelectFormField<Map<String, dynamic>>(
+                  labelText: 'Area',
+                  value: selectedArea,
+                  items: areas,
+                  itemLabel: _areaLabel,
+                  itemSubtitle: _areaSubtitle,
+                  leadingIcon: Icons.map_outlined,
+                  enabled: !_isSubmitting,
+                  searchHintText: 'Search area...',
+                  emptyText: 'No areas found.',
+                  validator: (value) => value == null ? 'Required' : null,
+                  onChanged: (value) => setState(
+                    () => _selectedAreaId = value?['area_id']?.toString(),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 _sheetField(
@@ -4048,6 +4050,13 @@ class _ListingFormSheetState extends State<_ListingFormSheet> {
           if (_selectedAreaId == null && areas.isNotEmpty) {
             _selectedAreaId = areas.first['area_id']?.toString();
           }
+          final selectedArea = _selectedAreaId == null
+              ? null
+              : areas
+                    .where(
+                      (area) => area['area_id']?.toString() == _selectedAreaId,
+                    )
+                    .firstOrNull;
           return Form(
             key: _formKey,
             child: ListView(
@@ -4086,24 +4095,20 @@ class _ListingFormSheetState extends State<_ListingFormSheet> {
                       : (value) => setState(() => _selectedCommodityId = value),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedAreaId,
-                  decoration: const InputDecoration(labelText: 'Area'),
-                  items: areas
-                      .map(
-                        (area) => DropdownMenuItem(
-                          value: area['area_id']?.toString(),
-                          child: Text(
-                            '${area['name'] ?? ''} (${area['level'] ?? ''})',
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  validator: (value) =>
-                      value == null || value.isEmpty ? 'Required' : null,
-                  onChanged: _isSubmitting
-                      ? null
-                      : (value) => setState(() => _selectedAreaId = value),
+                SearchableSelectFormField<Map<String, dynamic>>(
+                  labelText: 'Area',
+                  value: selectedArea,
+                  items: areas,
+                  itemLabel: _areaLabel,
+                  itemSubtitle: _areaSubtitle,
+                  leadingIcon: Icons.map_outlined,
+                  enabled: !_isSubmitting,
+                  searchHintText: 'Search area...',
+                  emptyText: 'No areas found.',
+                  validator: (value) => value == null ? 'Required' : null,
+                  onChanged: (value) => setState(
+                    () => _selectedAreaId = value?['area_id']?.toString(),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 _sheetField(
@@ -4460,6 +4465,21 @@ String _readValue(
   }
   final text = value.toString().trim();
   return text.isEmpty ? fallback : text;
+}
+
+String _areaLabel(Map<String, dynamic> area) {
+  final name = _readValue(area, 'name', fallback: 'Area');
+  final level = _readValue(area, 'level');
+  return level.isEmpty ? name : '$name ($level)';
+}
+
+String _areaSubtitle(Map<String, dynamic> area) {
+  final parent = _readValue(area, 'parent.name');
+  final path = _readValue(area, 'path');
+  if (parent.isNotEmpty) {
+    return 'Parent: $parent';
+  }
+  return path;
 }
 
 String _formatMarketPrice(Map<String, dynamic> price) {

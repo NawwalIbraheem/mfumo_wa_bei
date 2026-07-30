@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/layouts/app_shell.dart';
 import '../../core/network/api_service.dart';
 import '../../core/network/public_api_models.dart';
+import '../../core/widgets/searchable_select.dart';
 import '../../core/widgets/mfumo_app_bar.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/home/home_screen.dart';
@@ -683,40 +684,33 @@ class _MainScreenState extends State<MainScreen> {
                 style: TextStyle(color: Color(0xFF6B7280)),
               ),
               const SizedBox(height: 18),
-              DropdownButtonFormField<CommodityRecord>(
-                initialValue: selectedCommodity,
-                decoration: const InputDecoration(labelText: 'Zao'),
-                items: dashboard.commodities
-                    .map(
-                      (commodity) => DropdownMenuItem(
-                        value: commodity,
-                        child: Text(commodity.name),
-                      ),
-                    )
-                    .toList(),
-                onChanged: isSubmitting
-                    ? null
-                    : (value) => setSheetState(
-                        () => selectedCommodity = value ?? selectedCommodity,
-                      ),
+              SearchableSelectFormField<CommodityRecord>(
+                labelText: 'Zao',
+                value: selectedCommodity,
+                items: dashboard.commodities,
+                itemLabel: (commodity) => commodity.name,
+                leadingIcon: Icons.inventory_2_outlined,
+                enabled: !isSubmitting,
+                searchHintText: 'Tafuta zao...',
+                emptyText: 'Hakuna zao lililopatikana.',
+                onChanged: (value) => setSheetState(
+                  () => selectedCommodity = value ?? selectedCommodity,
+                ),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<MarketRecord>(
-                initialValue: selectedMarket,
-                decoration: const InputDecoration(labelText: 'Soko'),
-                items: dashboard.markets
-                    .map(
-                      (market) => DropdownMenuItem(
-                        value: market,
-                        child: Text(market.name),
-                      ),
-                    )
-                    .toList(),
-                onChanged: isSubmitting
-                    ? null
-                    : (value) => setSheetState(
-                        () => selectedMarket = value ?? selectedMarket,
-                      ),
+              SearchableSelectFormField<MarketRecord>(
+                labelText: 'Soko',
+                value: selectedMarket,
+                items: dashboard.markets,
+                itemLabel: (market) => market.name,
+                itemSubtitle: (market) => market.locationLabel,
+                leadingIcon: Icons.storefront_outlined,
+                enabled: !isSubmitting,
+                searchHintText: 'Tafuta soko...',
+                emptyText: 'Hakuna soko lililopatikana.',
+                onChanged: (value) => setSheetState(
+                  () => selectedMarket = value ?? selectedMarket,
+                ),
               ),
               const SizedBox(height: 12),
               TextFormField(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/network/api_service.dart';
+import '../../core/widgets/searchable_select.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({
@@ -350,6 +351,15 @@ class _OrderFormSheetState extends State<_OrderFormSheet> {
           if (_selectedListingId == null && listings.isNotEmpty) {
             _selectedListingId = listings.first['listing_id']?.toString();
           }
+          final selectedListing = _selectedListingId == null
+              ? null
+              : listings
+                    .where(
+                      (listing) =>
+                          listing['listing_id']?.toString() ==
+                          _selectedListingId,
+                    )
+                    .firstOrNull;
           return Form(
             key: _formKey,
             child: ListView(
@@ -369,22 +379,21 @@ class _OrderFormSheetState extends State<_OrderFormSheet> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedListingId,
-                  decoration: const InputDecoration(labelText: 'Listing'),
-                  items: listings
-                      .map(
-                        (listing) => DropdownMenuItem(
-                          value: listing['listing_id']?.toString(),
-                          child: Text(_listingTitle(listing)),
-                        ),
-                      )
-                      .toList(),
-                  validator: (value) =>
-                      value == null || value.isEmpty ? 'Required' : null,
-                  onChanged: _isSubmitting
-                      ? null
-                      : (value) => setState(() => _selectedListingId = value),
+                SearchableSelectFormField<Map<String, dynamic>>(
+                  labelText: 'Listing',
+                  value: selectedListing,
+                  items: listings,
+                  itemLabel: _listingTitle,
+                  itemSubtitle: (listing) =>
+                      '${_readNested(listing, 'commodity.name') ?? '-'} • ${_readNested(listing, 'adm_area.name') ?? '-'}',
+                  leadingIcon: Icons.shopping_bag_outlined,
+                  enabled: !_isSubmitting,
+                  searchHintText: 'Search listings...',
+                  emptyText: 'No listings found.',
+                  validator: (value) => value == null ? 'Required' : null,
+                  onChanged: (value) => setState(
+                    () => _selectedListingId = value?['listing_id']?.toString(),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
