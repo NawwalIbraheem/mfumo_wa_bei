@@ -7,7 +7,7 @@ import '../../core/widgets/searchable_select.dart';
 import '../../core/widgets/mfumo_app_bar.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/home/home_screen.dart';
-import '../../features/listings/listings_screen.dart';
+import '../../features/market/market_screen.dart';
 import '../../features/main/more_screen.dart';
 import '../../features/market_prices/market_prices_screen.dart';
 import '../../features/markets/markets_screen.dart';
@@ -238,7 +238,7 @@ class _MainScreenState extends State<MainScreen> {
           icon: Icon(Icons.shopping_bag_outlined),
           label: 'Bidhaa',
         ),
-        screen: ListingsScreen(
+        screen: MarketScreen(
           token: _token ?? '',
           permissions: permissions,
           dashboard: dashboard,
@@ -247,7 +247,7 @@ class _MainScreenState extends State<MainScreen> {
           icon: Icons.shopping_bag_outlined,
           title: 'Bidhaa',
           subtitle: 'Bidhaa zinazopatikana sokoni',
-          builder: (_) => ListingsScreen(
+          builder: (_) => MarketScreen(
             token: _token ?? '',
             permissions: permissions,
             dashboard: dashboard,
