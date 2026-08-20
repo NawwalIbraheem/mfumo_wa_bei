@@ -415,8 +415,8 @@ class _OrderFormSheetState extends State<_OrderFormSheet> {
                         child: Text('pending'),
                       ),
                       DropdownMenuItem(
-                        value: 'confirmed',
-                        child: Text('confirmed'),
+                        value: 'accepted',
+                        child: Text('accepted'),
                       ),
                       DropdownMenuItem(
                         value: 'cancelled',

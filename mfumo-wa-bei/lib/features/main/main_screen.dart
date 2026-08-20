@@ -233,17 +233,25 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
         ),
-      const _MainNavigationItem(
-        destination: NavigationDestination(
+      _MainNavigationItem(
+        destination: const NavigationDestination(
           icon: Icon(Icons.shopping_bag_outlined),
           label: 'Bidhaa',
         ),
-        screen: ListingsScreen(),
+        screen: ListingsScreen(
+          token: _token ?? '',
+          permissions: permissions,
+          dashboard: dashboard,
+        ),
         moreItem: MoreNavigationItem(
           icon: Icons.shopping_bag_outlined,
           title: 'Bidhaa',
           subtitle: 'Bidhaa zinazopatikana sokoni',
-          builder: _buildListingsScreen,
+          builder: (_) => ListingsScreen(
+            token: _token ?? '',
+            permissions: permissions,
+            dashboard: dashboard,
+          ),
         ),
       ),
       if (canSeeNotifications)
@@ -881,10 +889,6 @@ class _MainNavigationItem {
   final Widget screen;
   final MoreNavigationItem moreItem;
   final bool primary;
-}
-
-Widget _buildListingsScreen(BuildContext context) {
-  return const Scaffold(body: ListingsScreen());
 }
 
 Widget _buildNotificationsScreen(BuildContext context) {
