@@ -34,10 +34,10 @@ class MarketDetailScreenState extends State<MarketDetailScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
           children: [
-            _ImageStrip(images: _listingImages(widget.listing)),
+            _ImageStrip(images: listingImages(widget.listing)),
             const SizedBox(height: 16),
             Text(
-              _listingTitle(widget.listing),
+              listingTitle(widget.listing),
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
@@ -89,7 +89,7 @@ class MarketDetailScreenState extends State<MarketDetailScreen> {
                     fallback: '-',
                   ),
                 ),
-                _InfoTile(label: 'Title', value: _listingTitle(widget.listing)),
+                _InfoTile(label: 'Title', value: listingTitle(widget.listing)),
                 _InfoTile(
                   label: 'Description',
                   value: _readNested(
@@ -124,7 +124,7 @@ class MarketDetailScreenState extends State<MarketDetailScreen> {
                 ),
                 _InfoTile(
                   label: 'Area',
-                  value: _areaDisplayFromListing(widget.listing),
+                  value: areaDisplayFromListing(widget.listing),
                 ),
                 _InfoTile(
                   label: 'Area ID',
@@ -161,9 +161,11 @@ class MarketDetailScreenState extends State<MarketDetailScreen> {
             _InfoSection(
               title: 'Muuzaji',
               children: [
+                _SellerHeader(listing: widget.listing),
+                const SizedBox(height: 8),
                 _InfoTile(
                   label: 'Seller',
-                  value: _sellerDisplay(widget.listing),
+                  value: sellerDisplay(widget.listing),
                 ),
                 _InfoTile(
                   label: 'Seller ID',

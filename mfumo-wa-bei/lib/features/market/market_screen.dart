@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../core/config/api_config.dart';
 import '../../core/network/api_service.dart';
 import '../../core/network/public_api_models.dart';
+import '../../core/widgets/app_avatar.dart';
+import '../../core/widgets/listing_card.dart';
 import '../../core/widgets/searchable_select.dart';
 
 part 'market_detail_screen.dart';
@@ -93,7 +94,7 @@ class _MarketScreenState extends State<MarketScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
                     itemCount: listings.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) => _ListingTile(
+                    itemBuilder: (context, index) => ListingCard(
                       listing: listings[index],
                       onTap: () => _showListingDetails(listings[index]),
                     ),
@@ -456,7 +457,7 @@ class _OrderFromListingSheetState extends State<_OrderFromListingSheet> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-            _InfoTile(label: 'Bidhaa', value: _listingTitle(widget.listing)),
+            _InfoTile(label: 'Bidhaa', value: listingTitle(widget.listing)),
             _InfoTile(
               label: 'Bei',
               value:
@@ -504,133 +505,6 @@ class _OrderFromListingSheetState extends State<_OrderFromListingSheet> {
   }
 }
 
-class _ListingTile extends StatelessWidget {
-  const _ListingTile({required this.listing, required this.onTap});
-
-  final Map<String, dynamic> listing;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final imageUrl = _primaryImageUrl(listing);
-    return Card(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: InkWell(
-        onTap: onTap,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _ListingImage(url: imageUrl, width: 112, height: 132),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _listingTitle(listing),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${_readNested(listing, 'commodity.name', fallback: '-')} • ${_areaDisplayFromListing(listing)}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Color(0xFF6B7280)),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        _Pill(
-                          icon: Icons.scale_outlined,
-                          text:
-                              '${_readNested(listing, 'quantity', fallback: '-')} ${_readNested(listing, 'commodity.unit')}',
-                        ),
-                        _Pill(
-                          icon: Icons.verified_outlined,
-                          text: _readNested(listing, 'status', fallback: '-'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'TSh ${_readNested(listing, 'price', fallback: '-')}',
-                      style: const TextStyle(
-                        color: Color(0xFF0E7A3B),
-                        fontSize: 17,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _sellerDisplay(listing),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF6B7280),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ListingImage extends StatelessWidget {
-  const _ListingImage({
-    required this.url,
-    required this.width,
-    required this.height,
-  });
-
-  final String? url;
-  final double width;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    if (url == null || url!.isEmpty) {
-      return Container(
-        width: width,
-        height: height,
-        color: const Color(0xFFE8F5E9),
-        child: const Icon(
-          Icons.shopping_bag_outlined,
-          color: Color(0xFF0E7A3B),
-          size: 34,
-        ),
-      );
-    }
-    return Image.network(
-      url!,
-      width: width,
-      height: height,
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => Container(
-        width: width,
-        height: height,
-        color: const Color(0xFFE8F5E9),
-        child: const Icon(
-          Icons.broken_image_outlined,
-          color: Color(0xFF0E7A3B),
-        ),
-      ),
-    );
-  }
-}
-
 class _ImageStrip extends StatelessWidget {
   const _ImageStrip({required this.images});
 
@@ -639,13 +513,11 @@ class _ImageStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (images.isEmpty) {
-      return ClipRRect(
+      return AppAvatar(
+        width: double.infinity,
+        height: 190,
         borderRadius: BorderRadius.circular(14),
-        child: const _ListingImage(
-          url: null,
-          width: double.infinity,
-          height: 190,
-        ),
+        icon: Icons.eco_outlined,
       );
     }
     return SizedBox(
@@ -654,41 +526,68 @@ class _ImageStrip extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         itemCount: images.length,
         separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (context, index) => ClipRRect(
+        itemBuilder: (context, index) => AppAvatar(
+          imageUrl: images[index],
+          width: MediaQuery.sizeOf(context).width * 0.78,
+          height: 190,
           borderRadius: BorderRadius.circular(14),
-          child: _ListingImage(
-            url: images[index],
-            width: MediaQuery.sizeOf(context).width * 0.78,
-            height: 190,
-          ),
+          icon: Icons.eco_outlined,
         ),
       ),
     );
   }
 }
 
-class _Pill extends StatelessWidget {
-  const _Pill({required this.icon, required this.text});
+class _SellerHeader extends StatelessWidget {
+  const _SellerHeader({required this.listing});
 
-  final IconData icon;
-  final String text;
+  final Map<String, dynamic> listing;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF3F4F6),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: const Color(0xFF0E7A3B)),
-          const SizedBox(width: 4),
-          Text(text, style: const TextStyle(fontSize: 12)),
-        ],
-      ),
+    final sellerName = sellerDisplay(listing);
+    final organization = _readNested(listing, 'seller.organization');
+    final role = _readNested(
+      listing,
+      'seller.role.name',
+      fallback: _readNested(listing, 'seller.role.code'),
+    );
+
+    return Row(
+      children: [
+        AppAvatar(
+          imageUrl: _readNested(listing, 'seller.avatar_url'),
+          initials: _sellerInitials(sellerName),
+          icon: Icons.person_outline,
+          size: 48,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                sellerName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              if (organization.isNotEmpty || role.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  organization.isNotEmpty ? organization : role,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF6B7280),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -812,15 +711,6 @@ Widget _sheetField(
   );
 }
 
-String _listingTitle(Map<String, dynamic> listing) {
-  final commodityName = _readNested(listing, 'commodity.name', fallback: '');
-  return listing['title']?.toString().trim().isNotEmpty == true
-      ? listing['title'].toString()
-      : commodityName.isEmpty
-      ? 'Bidhaa'
-      : commodityName;
-}
-
 String _areaLabel(Map<String, dynamic> area) {
   final path = area['path']?.toString();
   if (path != null && path.trim().isNotEmpty) {
@@ -833,74 +723,19 @@ String _areaSubtitle(Map<String, dynamic> area) {
   return area['level']?.toString() ?? '';
 }
 
-String _areaDisplayFromListing(Map<String, dynamic> listing) {
-  final path = _readNested(listing, 'adm_area.path');
-  if (path.isNotEmpty) {
-    return path;
-  }
-  return _readNested(listing, 'adm_area.name', fallback: '-');
-}
-
-String _sellerDisplay(Map<String, dynamic> listing) {
-  final fullName = _readNested(listing, 'seller.full_name');
-  if (fullName.isNotEmpty) {
-    return fullName;
-  }
-  final firstName = _readNested(listing, 'seller.first_name');
-  final lastName = _readNested(listing, 'seller.last_name');
-  final name = '$firstName $lastName'.trim();
-  if (name.isNotEmpty) {
-    return name;
-  }
-  final username = _readNested(listing, 'seller.username');
-  if (username.isNotEmpty) {
-    return username;
-  }
-  return _readNested(listing, 'seller_id', fallback: 'Muuzaji');
-}
-
-String? _primaryImageUrl(Map<String, dynamic> listing) {
-  final images = listing['images'];
-  if (images is! List) {
-    return null;
-  }
-  final imageMaps = images.whereType<Map<String, dynamic>>().toList();
-  if (imageMaps.isEmpty) {
-    return null;
-  }
-  final primary = imageMaps.where((image) => image['is_primary'] == true);
-  final selected = primary.isNotEmpty ? primary.first : imageMaps.first;
-  return _normalizeImageUrl(selected['image_url']?.toString());
-}
-
-List<String> _listingImages(Map<String, dynamic> listing) {
-  final images = listing['images'];
-  if (images is! List) {
-    return const <String>[];
-  }
-  return images
-      .whereType<Map<String, dynamic>>()
-      .map((image) => _normalizeImageUrl(image['image_url']?.toString()))
-      .whereType<String>()
-      .where((url) => url.isNotEmpty)
+String _sellerInitials(String name) {
+  final parts = name
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((part) => part.isNotEmpty)
       .toList();
-}
-
-String? _normalizeImageUrl(String? rawUrl) {
-  final url = rawUrl?.trim();
-  if (url == null || url.isEmpty) {
-    return null;
+  if (parts.isEmpty) {
+    return '';
   }
-  final parsed = Uri.tryParse(url);
-  if (parsed != null && parsed.hasScheme) {
-    return url;
+  if (parts.length == 1) {
+    return parts.first.characters.first;
   }
-  final apiBase = Uri.parse(ApiConfig.baseUrl);
-  final origin = apiBase.replace(path: '', query: '', fragment: '');
-  if (url.startsWith('/')) {
-    return origin.resolve(url).toString();
-  }
-  return origin.resolve('/$url').toString();
+  return '${parts.first.characters.first}${parts.last.characters.first}';
 }
 
 String _readNested(
