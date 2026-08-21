@@ -150,6 +150,22 @@ class ApiService {
     return _readList(response);
   }
 
+  Future<PaginatedListResponse> paginatedList({
+    required String path,
+    int page = 1,
+    int pageSize = 9,
+    String? token,
+  }) async {
+    final response = await _get(
+      _pathWithQuery(path, {
+        'page': page.toString(),
+        'page_size': pageSize.toString(),
+      }),
+      token: token,
+    );
+    return PaginatedListResponse.fromPayload(response);
+  }
+
   Future<Map<String, dynamic>> publicDetail(String path) async {
     final response = await _get(path);
     return _extractData(response);
@@ -465,5 +481,56 @@ class ApiService {
     }
 
     return 'Kuna hitilafu imetokea. Jaribu tena.';
+  }
+}
+
+class PaginatedListResponse {
+  const PaginatedListResponse({
+    required this.items,
+    required this.page,
+    required this.totalPages,
+    required this.hasNext,
+  });
+
+  final List<Map<String, dynamic>> items;
+  final int page;
+  final int totalPages;
+  final bool hasNext;
+
+  factory PaginatedListResponse.fromPayload(Map<String, dynamic> payload) {
+    final data = payload['data'];
+    final meta = payload['meta'];
+    final pagination = meta is Map<String, dynamic> ? meta['pagination'] : null;
+
+    return PaginatedListResponse(
+      items: data is List
+          ? data.whereType<Map<String, dynamic>>().toList()
+          : const <Map<String, dynamic>>[],
+      page: _readInt(pagination, 'page', fallback: 1),
+      totalPages: _readInt(pagination, 'total_pages', fallback: 1),
+      hasNext: _readBool(pagination, 'has_next'),
+    );
+  }
+
+  static int _readInt(dynamic source, String key, {required int fallback}) {
+    if (source is! Map<String, dynamic>) {
+      return fallback;
+    }
+    final value = source[key];
+    if (value is int) {
+      return value;
+    }
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  static bool _readBool(dynamic source, String key) {
+    if (source is! Map<String, dynamic>) {
+      return false;
+    }
+    final value = source[key];
+    if (value is bool) {
+      return value;
+    }
+    return value?.toString().toLowerCase() == 'true';
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/network/api_service.dart';
 import '../../core/network/public_api_models.dart';
@@ -25,8 +26,16 @@ class MarketScreen extends StatefulWidget {
 }
 
 class _MarketScreenState extends State<MarketScreen> {
+  static const int _pageSize = 9;
+
   final ApiService _apiService = ApiService();
-  late Future<List<Map<String, dynamic>>> _future;
+  final ScrollController _scrollController = ScrollController();
+  final List<Map<String, dynamic>> _listings = [];
+  int _page = 0;
+  bool _hasNext = true;
+  bool _isInitialLoading = true;
+  bool _isLoadingMore = false;
+  String? _errorMessage;
 
   bool get _canCreateListing => widget.permissions.contains('listings.create');
   bool get _canUpdateListing => widget.permissions.contains('listings.update');
@@ -36,17 +45,87 @@ class _MarketScreenState extends State<MarketScreen> {
   @override
   void initState() {
     super.initState();
-    _future = _load();
+    _scrollController.addListener(_handleScroll);
+    _loadInitial();
   }
 
-  Future<List<Map<String, dynamic>>> _load() {
-    return _apiService.publicList('/listings');
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_handleScroll)
+      ..dispose();
+    super.dispose();
   }
 
   Future<void> _refresh() async {
-    final future = _load();
-    setState(() => _future = future);
-    await future;
+    await _loadInitial();
+  }
+
+  Future<void> _loadInitial() async {
+    setState(() {
+      _isInitialLoading = true;
+      _isLoadingMore = false;
+      _errorMessage = null;
+      _page = 0;
+      _hasNext = true;
+      _listings.clear();
+    });
+
+    await _loadPage(1, replace: true);
+  }
+
+  Future<void> _loadMore() async {
+    if (_isInitialLoading || _isLoadingMore || !_hasNext) return;
+    await _loadPage(_page + 1);
+  }
+
+  Future<void> _loadPage(int page, {bool replace = false}) async {
+    setState(() {
+      if (replace) {
+        _isInitialLoading = true;
+      } else {
+        _isLoadingMore = true;
+      }
+      _errorMessage = null;
+    });
+
+    try {
+      final response = await _apiService.paginatedList(
+        path: '/listings',
+        page: page,
+        pageSize: _pageSize,
+        token: widget.token.isEmpty ? null : widget.token,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (replace) {
+          _listings
+            ..clear()
+            ..addAll(response.items);
+        } else {
+          _listings.addAll(response.items);
+        }
+        _page = response.page;
+        _hasNext = response.hasNext && response.page < response.totalPages;
+        _isInitialLoading = false;
+        _isLoadingMore = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.message;
+        _isInitialLoading = false;
+        _isLoadingMore = false;
+      });
+    }
+  }
+
+  void _handleScroll() {
+    if (!_scrollController.hasClients || !_hasNext) return;
+    final position = _scrollController.position;
+    if (position.pixels >= position.maxScrollExtent - 320) {
+      _loadMore();
+    }
   }
 
   @override
@@ -59,49 +138,52 @@ class _MarketScreenState extends State<MarketScreen> {
               label: const Text('Weka bidhaa'),
             )
           : null,
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return RefreshIndicator(
-              onRefresh: _refresh,
-              child: _ErrorState(
-                message: snapshot.error.toString(),
-                onRetry: _refresh,
-              ),
-            );
-          }
+      body: _buildBody(context),
+    );
+  }
 
-          final listings = snapshot.data ?? const <Map<String, dynamic>>[];
-          return RefreshIndicator(
-            onRefresh: _refresh,
-            child: listings.isEmpty
-                ? ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
-                    children: [
-                      SizedBox(
-                        height: MediaQuery.sizeOf(context).height * 0.32,
-                      ),
-                      const Center(child: Text('Hakuna bidhaa kwa sasa.')),
-                    ],
-                  )
-                : ListView.separated(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
-                    itemCount: listings.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) => ListingCard(
-                      listing: listings[index],
-                      onTap: () => _showListingDetails(listings[index]),
-                    ),
-                  ),
-          );
-        },
-      ),
+  Widget _buildBody(BuildContext context) {
+    if (_isInitialLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_errorMessage != null && _listings.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _refresh,
+        child: _ErrorState(message: _errorMessage!, onRetry: _refresh),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: _listings.isEmpty
+          ? ListView(
+              controller: _scrollController,
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
+              children: [
+                SizedBox(height: MediaQuery.sizeOf(context).height * 0.32),
+                const Center(child: Text('Hakuna bidhaa kwa sasa.')),
+              ],
+            )
+          : ListView.separated(
+              controller: _scrollController,
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
+              itemCount: _listings.length + (_isLoadingMore ? 1 : 0),
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (context, index) {
+                if (index >= _listings.length) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                return ListingCard(
+                  listing: _listings[index],
+                  onTap: () => _showListingDetails(_listings[index]),
+                );
+              },
+            ),
     );
   }
 
@@ -120,7 +202,7 @@ class _MarketScreenState extends State<MarketScreen> {
       ),
     );
     if (changed == true && mounted) {
-      setState(() => _future = _load());
+      _loadInitial();
     }
   }
 
@@ -138,7 +220,7 @@ class _MarketScreenState extends State<MarketScreen> {
       ),
     );
     if (changed == true && mounted) {
-      setState(() => _future = _load());
+      _loadInitial();
     }
   }
 }
@@ -546,12 +628,8 @@ class _SellerHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sellerName = sellerDisplay(listing);
-    final organization = _readNested(listing, 'seller.organization');
-    final role = _readNested(
-      listing,
-      'seller.role.name',
-      fallback: _readNested(listing, 'seller.role.code'),
-    );
+    final phone = _readNested(listing, 'seller.phone_number');
+    final email = _readNested(listing, 'seller.email');
 
     return Row(
       children: [
@@ -559,29 +637,46 @@ class _SellerHeader extends StatelessWidget {
           imageUrl: _readNested(listing, 'seller.avatar_url'),
           initials: _sellerInitials(sellerName),
           icon: Icons.person_outline,
-          size: 48,
+          size: 64,
+          borderRadius: BorderRadius.circular(8),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                sellerName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
-              if (organization.isNotEmpty || role.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                Text(
-                  organization.isNotEmpty ? organization : role,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF6B7280),
-                    fontSize: 12,
+              Row(
+                children: [
+                  const Icon(
+                    Icons.person_outline,
+                    size: 16,
+                    color: Color(0xFF17221B),
                   ),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      sellerName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ],
+              ),
+              if (phone.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                _SellerContactLine(
+                  icon: Icons.phone_outlined,
+                  text: phone,
+                  uri: Uri(scheme: 'tel', path: phone),
+                ),
+              ],
+              if (email.isNotEmpty) ...[
+                const SizedBox(height: 3),
+                _SellerContactLine(
+                  icon: Icons.email_outlined,
+                  text: email,
+                  uri: Uri(scheme: 'mailto', path: email),
                 ),
               ],
             ],
@@ -589,6 +684,59 @@ class _SellerHeader extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+class _SellerContactLine extends StatelessWidget {
+  const _SellerContactLine({
+    required this.icon,
+    required this.text,
+    required this.uri,
+  });
+
+  final IconData icon;
+  final String text;
+  final Uri uri;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => _launchContactUri(context),
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          children: [
+            Icon(icon, size: 13, color: const Color(0xFF0E7A3B)),
+            const SizedBox(width: 5),
+            Expanded(
+              child: Text(
+                text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFF0E7A3B),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _launchContactUri(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Imeshindikana kufungua programu husika.'),
+        ),
+      );
+    }
   }
 }
 
@@ -613,6 +761,46 @@ class _DetailLine extends StatelessWidget {
   }
 }
 
+class _InfoLabel extends StatelessWidget {
+  const _InfoLabel({required this.icon, required this.value});
+
+  final IconData icon;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7FAF8),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE5EBE7)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: const Color(0xFF0E7A3B)),
+          const SizedBox(width: 4),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 180),
+            child: Text(
+              value.isEmpty ? '-' : value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF17221B),
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _InfoTile extends StatelessWidget {
   const _InfoTile({required this.label, required this.value});
 
@@ -626,37 +814,6 @@ class _InfoTile extends StatelessWidget {
       contentPadding: EdgeInsets.zero,
       title: Text(label),
       subtitle: Text(value.isEmpty ? '-' : value),
-    );
-  }
-}
-
-class _InfoSection extends StatelessWidget {
-  const _InfoSection({required this.title, required this.children});
-
-  final String title;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 8),
-          ...children,
-        ],
-      ),
     );
   }
 }
@@ -736,6 +893,69 @@ String _sellerInitials(String name) {
     return parts.first.characters.first;
   }
   return '${parts.first.characters.first}${parts.last.characters.first}';
+}
+
+String _relativeTime(String rawDate) {
+  final date = DateTime.tryParse(rawDate);
+  if (date == null) {
+    return '-';
+  }
+  final postedAt = date.isUtc ? date.toLocal() : date;
+  final difference = DateTime.now().difference(postedAt);
+  if (difference.inSeconds < 60) {
+    return 'now';
+  }
+  if (difference.inMinutes < 60) {
+    return '${difference.inMinutes}m';
+  }
+  if (difference.inHours < 24) {
+    return '${difference.inHours}h';
+  }
+  if (difference.inDays < 7) {
+    return '${difference.inDays}d';
+  }
+  if (difference.inDays < 30) {
+    return '${difference.inDays ~/ 7}w';
+  }
+  if (difference.inDays < 365) {
+    return '${difference.inDays ~/ 30}mo';
+  }
+  return '${difference.inDays ~/ 365}y';
+}
+
+String _relativeTimeAgo(String rawDate) {
+  final relative = _relativeTime(rawDate);
+  if (relative == '-' || relative == 'now') {
+    return relative;
+  }
+  return '$relative ago';
+}
+
+String _pricePerUnit(Map<String, dynamic> listing) {
+  final price = _readNested(listing, 'price', fallback: '-');
+  final unit = _readNested(listing, 'commodity.unit');
+  if (unit.isEmpty) {
+    return 'TSh $price';
+  }
+  return 'TSh $price / $unit';
+}
+
+String _commodityCategoryLabel(Map<String, dynamic> listing) {
+  final commodity = listing['commodity'];
+  if (commodity is Map<String, dynamic>) {
+    final categories = commodity['categories'];
+    if (categories is List) {
+      final names = categories
+          .whereType<Map<String, dynamic>>()
+          .map((category) => category['name']?.toString().trim() ?? '')
+          .where((name) => name.isNotEmpty)
+          .toList();
+      if (names.isNotEmpty) {
+        return names.join(', ');
+      }
+    }
+  }
+  return _readNested(listing, 'commodity.name', fallback: '-');
 }
 
 String _readNested(

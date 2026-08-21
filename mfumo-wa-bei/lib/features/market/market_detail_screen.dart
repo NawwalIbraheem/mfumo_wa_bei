@@ -36,6 +36,45 @@ class MarketDetailScreenState extends State<MarketDetailScreen> {
           children: [
             _ImageStrip(images: listingImages(widget.listing)),
             const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      _InfoLabel(
+                        icon: Icons.place_outlined,
+                        value: areaDisplayFromListing(widget.listing),
+                      ),
+                      _InfoLabel(
+                        icon: Icons.verified_outlined,
+                        value: _readNested(
+                          widget.listing,
+                          'status',
+                          fallback: '-',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Text(
+                    _relativeTimeAgo(_readNested(widget.listing, 'created_at')),
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      color: Color(0xFF6B7280),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
             Text(
               listingTitle(widget.listing),
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
@@ -48,29 +87,16 @@ class MarketDetailScreenState extends State<MarketDetailScreen> {
             const SizedBox(height: 16),
             _DetailLine(
               icon: Icons.inventory_2_outlined,
-              text: _readNested(
-                widget.listing,
-                'commodity.name',
-                fallback: '-',
-              ),
-            ),
-            _DetailLine(
-              icon: Icons.place_outlined,
-              text: _readNested(widget.listing, 'adm_area.name', fallback: '-'),
+              text: 'Category: ${_commodityCategoryLabel(widget.listing)}',
             ),
             _DetailLine(
               icon: Icons.scale_outlined,
               text:
-                  'Kiasi: ${_readNested(widget.listing, 'quantity', fallback: '-')}',
-            ),
-            _DetailLine(
-              icon: Icons.verified_outlined,
-              text:
-                  'Hali: ${_readNested(widget.listing, 'status', fallback: '-')}',
+                  'Stock available: ${_readNested(widget.listing, 'quantity', fallback: '-')}',
             ),
             const SizedBox(height: 14),
             Text(
-              'TSh ${_readNested(widget.listing, 'price', fallback: '-')}',
+              _pricePerUnit(widget.listing),
               style: const TextStyle(
                 color: Color(0xFF0E7A3B),
                 fontSize: 22,
@@ -78,143 +104,14 @@ class MarketDetailScreenState extends State<MarketDetailScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            _InfoSection(
-              title: 'Taarifa za bidhaa',
-              children: [
-                _InfoTile(
-                  label: 'Listing ID',
-                  value: _readNested(
-                    widget.listing,
-                    'listing_id',
-                    fallback: '-',
-                  ),
-                ),
-                _InfoTile(label: 'Title', value: listingTitle(widget.listing)),
-                _InfoTile(
-                  label: 'Description',
-                  value: _readNested(
-                    widget.listing,
-                    'description',
-                    fallback: '-',
-                  ),
-                ),
-                _InfoTile(
-                  label: 'Commodity',
-                  value: _readNested(
-                    widget.listing,
-                    'commodity.name',
-                    fallback: '-',
-                  ),
-                ),
-                _InfoTile(
-                  label: 'Commodity ID',
-                  value: _readNested(
-                    widget.listing,
-                    'commodity.commodity_id',
-                    fallback: '-',
-                  ),
-                ),
-                _InfoTile(
-                  label: 'Unit',
-                  value: _readNested(
-                    widget.listing,
-                    'commodity.unit',
-                    fallback: '-',
-                  ),
-                ),
-                _InfoTile(
-                  label: 'Area',
-                  value: areaDisplayFromListing(widget.listing),
-                ),
-                _InfoTile(
-                  label: 'Area ID',
-                  value: _readNested(
-                    widget.listing,
-                    'adm_area.area_id',
-                    fallback: '-',
-                  ),
-                ),
-                _InfoTile(
-                  label: 'Price',
-                  value:
-                      'TSh ${_readNested(widget.listing, 'price', fallback: '-')}',
-                ),
-                _InfoTile(
-                  label: 'Quantity',
-                  value: _readNested(widget.listing, 'quantity', fallback: '-'),
-                ),
-                _InfoTile(
-                  label: 'Status',
-                  value: _readNested(widget.listing, 'status', fallback: '-'),
-                ),
-                _InfoTile(
-                  label: 'Created',
-                  value: _readNested(
-                    widget.listing,
-                    'created_at',
-                    fallback: '-',
-                  ),
-                ),
-              ],
+            const Text(
+              'About Seller',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
             ),
-            const SizedBox(height: 12),
-            _InfoSection(
-              title: 'Muuzaji',
-              children: [
-                _SellerHeader(listing: widget.listing),
-                const SizedBox(height: 8),
-                _InfoTile(
-                  label: 'Seller',
-                  value: sellerDisplay(widget.listing),
-                ),
-                _InfoTile(
-                  label: 'Seller ID',
-                  value: _readNested(
-                    widget.listing,
-                    'seller_id',
-                    fallback: '-',
-                  ),
-                ),
-                _InfoTile(
-                  label: 'Phone',
-                  value: _readNested(
-                    widget.listing,
-                    'seller.phone_number',
-                    fallback: '-',
-                  ),
-                ),
-                _InfoTile(
-                  label: 'Email',
-                  value: _readNested(
-                    widget.listing,
-                    'seller.email',
-                    fallback: '-',
-                  ),
-                ),
-                _InfoTile(
-                  label: 'Organization',
-                  value: _readNested(
-                    widget.listing,
-                    'seller.organization',
-                    fallback: '-',
-                  ),
-                ),
-                _InfoTile(
-                  label: 'Role',
-                  value: _readNested(
-                    widget.listing,
-                    'seller.role.name',
-                    fallback: _readNested(
-                      widget.listing,
-                      'seller.role.code',
-                      fallback: '-',
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            const SizedBox(height: 10),
+            _SellerHeader(listing: widget.listing),
             const SizedBox(height: 20),
-            if (widget.canCreateOrder)
+            if (widget.canCreateOrder || widget.token.isEmpty)
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
@@ -252,6 +149,18 @@ class MarketDetailScreenState extends State<MarketDetailScreen> {
   }
 
   Future<void> _placeOrder() async {
+    if (widget.token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ingia kwanza ili kuweka oda.')),
+      );
+      return;
+    }
+    if (!widget.canCreateOrder) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Huna ruhusa ya kuweka oda.')),
+      );
+      return;
+    }
     final changed = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
