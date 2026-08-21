@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/layouts/auth_shell.dart';
+import '../../main/main_screen.dart';
 
 class AuthLayout extends StatelessWidget {
   const AuthLayout({
@@ -8,15 +9,29 @@ class AuthLayout extends StatelessWidget {
     required this.child,
     this.showBack = false,
     this.onBack,
+    this.showHome = true,
   });
 
   final Widget child;
   final bool showBack;
   final VoidCallback? onBack;
+  final bool showHome;
 
   @override
   Widget build(BuildContext context) {
-    return AuthShell(showBack: showBack, onBack: onBack, child: child);
+    return AuthShell(
+      showBack: showBack,
+      onBack: onBack,
+      showHome: showHome,
+      onHome: () {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          MainScreen.routeName,
+          (route) => false,
+        );
+      },
+      child: child,
+    );
   }
 }
 

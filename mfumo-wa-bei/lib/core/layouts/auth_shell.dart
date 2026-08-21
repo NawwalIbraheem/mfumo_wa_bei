@@ -6,11 +6,15 @@ class AuthShell extends StatelessWidget {
     required this.child,
     this.showBack = false,
     this.onBack,
+    this.showHome = false,
+    this.onHome,
   });
 
   final Widget child;
   final bool showBack;
   final VoidCallback? onBack;
+  final bool showHome;
+  final VoidCallback? onHome;
 
   @override
   Widget build(BuildContext context) {
@@ -21,13 +25,32 @@ class AuthShell extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (showBack)
-                IconButton(
-                  onPressed: onBack ?? () => Navigator.of(context).maybePop(),
-                  icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-                  color: const Color(0xFF0E7A3B),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+              if (showBack || showHome)
+                Row(
+                  children: [
+                    if (showBack)
+                      IconButton(
+                        onPressed:
+                            onBack ?? () => Navigator.of(context).maybePop(),
+                        icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+                        color: const Color(0xFF0E7A3B),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    const Spacer(),
+                    if (showHome)
+                      TextButton.icon(
+                        onPressed: onHome,
+                        icon: const Icon(Icons.home_outlined, size: 18),
+                        label: const Text('Home'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF0E7A3B),
+                          textStyle: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               child,
             ],
