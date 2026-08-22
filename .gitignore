@@ -1,2 +1,32 @@
+# Dart / Flutter
 .dart_tool/
+.flutter-plugins
 .flutter-plugins-dependencies
+.pub-cache/
+.pub/
+
+# Build output
+build/
+
+# Android
+android/.gradle/
+android/local.properties
+android/**/GeneratedPluginRegistrant.java
+
+# iOS / macOS
+ios/Pods/
+ios/.symlinks/
+macos/Pods/
+macos/.symlinks/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
