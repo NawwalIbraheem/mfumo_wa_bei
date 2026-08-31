@@ -129,12 +129,14 @@ class _MainScreenState extends State<MainScreen> {
   }) {
     final fullName = _displayName(user);
     final isAuthenticated = user != null;
+    final userId = user?['user_id']?.toString() ?? user?['id']?.toString();
+    final phoneNumber = _readPhoneNumber(user);
     final canCreateMarketPrice =
         permissions.contains('market_prices.create') ||
         permissions.contains('commodity_prices.create');
     const canSeePriceTools = true;
     final canSeeNotifications = permissions.contains('auth.me');
-    final canSeeOrders = permissions.contains('orders.list');
+    final canSeeOrders = isAuthenticated || permissions.contains('orders.list');
     final canSeeAdmin =
         permissions.contains('users.list') ||
         permissions.contains('roles.list') ||
@@ -207,7 +209,7 @@ class _MainScreenState extends State<MainScreen> {
               });
             },
             onFilterChanged: (value) =>
-                setState(() => selectedCropFilter = value),
+              setState(() => selectedCropFilter = value),
             onMarketTap: _showMarketDetails,
             onRefresh: _refreshData,
           ),
@@ -242,6 +244,8 @@ class _MainScreenState extends State<MainScreen> {
           token: _token ?? '',
           permissions: permissions,
           dashboard: dashboard,
+          currentUserId: userId,
+          userPhoneNumber: phoneNumber,
         ),
         moreItem: MoreNavigationItem(
           icon: Icons.shopping_bag_outlined,
@@ -251,6 +255,8 @@ class _MainScreenState extends State<MainScreen> {
             token: _token ?? '',
             permissions: permissions,
             dashboard: dashboard,
+            currentUserId: userId,
+            userPhoneNumber: phoneNumber,
           ),
         ),
       ),
@@ -271,17 +277,24 @@ class _MainScreenState extends State<MainScreen> {
         ),
       if (canSeeOrders)
         _MainNavigationItem(
-          destination: NavigationDestination(
+          destination: const NavigationDestination(
             icon: Icon(Icons.receipt_long_outlined),
             label: 'Oda',
           ),
-          screen: OrdersScreen(token: _token ?? '', permissions: permissions),
+          screen: OrdersScreen(
+            token: _token ?? '',
+            permissions: permissions,
+            userPhoneNumber: phoneNumber,
+          ),
           moreItem: MoreNavigationItem(
             icon: Icons.receipt_long_outlined,
             title: 'Oda',
             subtitle: 'Oda zinazoonekana kwa akaunti yako',
-            builder: (_) =>
-                OrdersScreen(token: _token ?? '', permissions: permissions),
+            builder: (_) => OrdersScreen(
+              token: _token ?? '',
+              permissions: permissions,
+              userPhoneNumber: phoneNumber,
+            ),
           ),
         ),
       if (canSeeAdmin)

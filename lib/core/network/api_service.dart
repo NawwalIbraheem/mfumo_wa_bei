@@ -166,6 +166,167 @@ class ApiService {
     return PaginatedListResponse.fromPayload(response);
   }
 
+  Future<PaginatedListResponse> listCommodityListings({
+    String? commodityId,
+    String? areaId,
+    String? status,
+    double? minPrice,
+    double? maxPrice,
+    String? ordering,
+    String? search,
+    int page = 1,
+    int pageSize = 9,
+    String? token,
+  }) async {
+    final query = <String, String>{
+      'page': page.toString(),
+      'page_size': pageSize.toString(),
+    };
+    if (commodityId != null && commodityId.isNotEmpty) {
+      query['commodity_id'] = commodityId;
+    }
+    if (areaId != null && areaId.isNotEmpty) {
+      query['area_id'] = areaId;
+    }
+    if (status != null && status.isNotEmpty) {
+      query['status'] = status;
+    }
+    if (minPrice != null) {
+      query['min_price'] = minPrice.toString();
+    }
+    if (maxPrice != null) {
+      query['max_price'] = maxPrice.toString();
+    }
+    if (ordering != null && ordering.isNotEmpty) {
+      query['ordering'] = ordering;
+    }
+    if (search != null && search.trim().isNotEmpty) {
+      query['search'] = search.trim();
+    }
+    final response = await _get(
+      _pathWithQuery('/listings', query),
+      token: token,
+    );
+    return PaginatedListResponse.fromPayload(response);
+  }
+
+  Future<Map<String, dynamic>> getCommodityListing(
+    String listingId, {
+    String? token,
+  }) async {
+    final response = await _get('/listings/$listingId', token: token);
+    return _extractData(response);
+  }
+
+  Future<Map<String, dynamic>> createCommodityListing({
+    required String token,
+    required Map<String, dynamic> body,
+  }) async {
+    return protectedCreate(token: token, path: '/listings', body: body);
+  }
+
+  Future<Map<String, dynamic>> updateCommodityListing({
+    required String token,
+    required String listingId,
+    required Map<String, dynamic> body,
+  }) async {
+    return protectedUpdate(
+      token: token,
+      path: '/listings/$listingId',
+      body: body,
+    );
+  }
+
+  Future<void> deleteCommodityListing({
+    required String token,
+    required String listingId,
+  }) async {
+    await protectedDelete(token: token, path: '/listings/$listingId');
+  }
+
+  Future<PaginatedListResponse> listOrders({
+    String? scope,
+    String? status,
+    String? search,
+    int page = 1,
+    int pageSize = 10,
+    required String token,
+  }) async {
+    final query = <String, String>{
+      'page': page.toString(),
+      'page_size': pageSize.toString(),
+    };
+    if (scope != null && scope.isNotEmpty) {
+      query['scope'] = scope;
+    }
+    if (status != null && status.isNotEmpty) {
+      query['status'] = status;
+    }
+    if (search != null && search.trim().isNotEmpty) {
+      query['search'] = search.trim();
+    }
+    final response = await _get(
+      _pathWithQuery('/orders', query),
+      token: token,
+    );
+    return PaginatedListResponse.fromPayload(response);
+  }
+
+  Future<Map<String, dynamic>> getOrderDetail({
+    required String token,
+    required String orderId,
+  }) async {
+    return protectedDetail(token: token, path: '/orders/$orderId');
+  }
+
+  Future<Map<String, dynamic>> createOrder({
+    required String token,
+    required String listingId,
+    required String quantity,
+  }) async {
+    return protectedCreate(
+      token: token,
+      path: '/orders',
+      body: {'listing_id': listingId, 'quantity': quantity},
+    );
+  }
+
+  Future<Map<String, dynamic>> updateOrderStatus({
+    required String token,
+    required String orderId,
+    required String status,
+  }) async {
+    return protectedUpdate(
+      token: token,
+      path: '/orders/$orderId',
+      body: {'status': status},
+    );
+  }
+
+  Future<Map<String, dynamic>> initiateOrderPayment({
+    required String token,
+    required String orderId,
+    required String phoneNumber,
+  }) async {
+    final response = await _post(
+      '/orders/$orderId/payments',
+      {'phone_number': _normalizePhoneNumber(phoneNumber)},
+      token: token,
+    );
+    return _extractData(response);
+  }
+
+  Future<Map<String, dynamic>> getOrderPaymentStatus({
+    required String token,
+    required String orderId,
+  }) async {
+    final response = await _get(
+      '/orders/$orderId/payment-status',
+      token: token,
+    );
+    return _extractData(response);
+  }
+
   Future<Map<String, dynamic>> publicDetail(String path) async {
     final response = await _get(path);
     return _extractData(response);
@@ -490,17 +651,33 @@ class PaginatedListResponse {
     required this.page,
     required this.totalPages,
     required this.hasNext,
+    this.totalItems = 0,
+    this.counts = const <String, int>{},
   });
 
   final List<Map<String, dynamic>> items;
   final int page;
   final int totalPages;
   final bool hasNext;
+  final int totalItems;
+  final Map<String, int> counts;
 
   factory PaginatedListResponse.fromPayload(Map<String, dynamic> payload) {
     final data = payload['data'];
     final meta = payload['meta'];
     final pagination = meta is Map<String, dynamic> ? meta['pagination'] : null;
+    final countsMap = meta is Map<String, dynamic> ? meta['counts'] : null;
+
+    final counts = <String, int>{};
+    if (countsMap is Map<String, dynamic>) {
+      countsMap.forEach((key, val) {
+        if (val is int) {
+          counts[key] = val;
+        } else if (val != null) {
+          counts[key] = int.tryParse(val.toString()) ?? 0;
+        }
+      });
+    }
 
     return PaginatedListResponse(
       items: data is List
@@ -509,6 +686,8 @@ class PaginatedListResponse {
       page: _readInt(pagination, 'page', fallback: 1),
       totalPages: _readInt(pagination, 'total_pages', fallback: 1),
       hasNext: _readBool(pagination, 'has_next'),
+      totalItems: _readInt(pagination, 'total_items', fallback: 0),
+      counts: counts,
     );
   }
 

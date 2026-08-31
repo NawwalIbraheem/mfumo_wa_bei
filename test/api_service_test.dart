@@ -657,5 +657,111 @@ void main() {
         endsWith('/orders/o1'),
       ]);
     });
+
+    test('supports dedicated marketplace listings and filtering', () async {
+      late final Uri requestUri;
+      final service = ApiService(
+        client: MockClient((request) async {
+          requestUri = request.url;
+          return http.Response(
+            '{"data":[{"listing_id":"l1","title":"Rice","price":"2500"}],"meta":{"pagination":{"page":1,"page_size":9,"total_items":1,"total_pages":1,"has_next":false}}}',
+            200,
+          );
+        }),
+      );
+
+      final result = await service.listCommodityListings(
+        commodityId: 'c1',
+        areaId: 'a1',
+        status: 'available',
+        minPrice: 1000,
+        maxPrice: 5000,
+        ordering: 'price',
+        search: 'Rice',
+        page: 1,
+        pageSize: 9,
+      );
+
+      expect(result.items.length, 1);
+      expect(requestUri.queryParameters['commodity_id'], 'c1');
+      expect(requestUri.queryParameters['area_id'], 'a1');
+      expect(requestUri.queryParameters['status'], 'available');
+      expect(requestUri.queryParameters['min_price'], '1000.0');
+      expect(requestUri.queryParameters['max_price'], '5000.0');
+      expect(requestUri.queryParameters['ordering'], 'price');
+      expect(requestUri.queryParameters['search'], 'Rice');
+    });
+
+    test('supports dedicated orders list with scope and status filtering', () async {
+      late final Uri requestUri;
+      final service = ApiService(
+        client: MockClient((request) async {
+          requestUri = request.url;
+          return http.Response(
+            '{"data":[{"order_id":"o1","quantity":"5"}],"meta":{"pagination":{"page":1,"page_size":10,"total_items":1,"total_pages":1,"has_next":false},"counts":{"placed":1,"received":2}}}',
+            200,
+          );
+        }),
+      );
+
+      final result = await service.listOrders(
+        token: 'user-token',
+        scope: 'placed',
+        status: 'pending',
+        search: 'Rice',
+        page: 1,
+        pageSize: 10,
+      );
+
+      expect(result.items.length, 1);
+      expect(result.counts['placed'], 1);
+      expect(result.counts['received'], 2);
+      expect(requestUri.queryParameters['scope'], 'placed');
+      expect(requestUri.queryParameters['status'], 'pending');
+      expect(requestUri.queryParameters['search'], 'Rice');
+    });
+
+    test('supports initiateOrderPayment and getOrderPaymentStatus', () async {
+      final methods = <String>[];
+      final paths = <String>[];
+      late final String requestBody;
+
+      final service = ApiService(
+        client: MockClient((request) async {
+          methods.add(request.method);
+          paths.add(request.url.path);
+          if (request.method == 'POST') {
+            requestBody = request.body;
+            return http.Response(
+              '{"data":{"payment_id":"pay1","status":"pending"},"message":"Payment initiated"}',
+              200,
+            );
+          }
+          return http.Response(
+            '{"data":{"order_id":"o1","order_status":"paid","payment":{"payment_id":"pay1","status":"success"}}}',
+            200,
+          );
+        }),
+      );
+
+      final paymentResponse = await service.initiateOrderPayment(
+        token: 'user-token',
+        orderId: 'o1',
+        phoneNumber: '0712345678',
+      );
+      final statusResponse = await service.getOrderPaymentStatus(
+        token: 'user-token',
+        orderId: 'o1',
+      );
+
+      expect(methods, ['POST', 'GET']);
+      expect(paths, [
+        endsWith('/orders/o1/payments'),
+        endsWith('/orders/o1/payment-status'),
+      ]);
+      expect(requestBody, contains('+255712345678'));
+      expect(paymentResponse['payment_id'], 'pay1');
+      expect(statusResponse['order_status'], 'paid');
+    });
   });
 }

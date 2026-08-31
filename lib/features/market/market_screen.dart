@@ -5,9 +5,13 @@ import '../../core/network/api_service.dart';
 import '../../core/network/public_api_models.dart';
 import '../../core/widgets/app_avatar.dart';
 import '../../core/widgets/listing_card.dart';
-import '../../core/widgets/searchable_select.dart';
+import '../auth/login_screen.dart';
+import '../orders/order_payment_sheet.dart';
+import 'listing_form_screen.dart';
 
 part 'market_detail_screen.dart';
+
+enum _MarketTab { allMarket, myListings, systemListings }
 
 class MarketScreen extends StatefulWidget {
   const MarketScreen({
@@ -15,37 +19,64 @@ class MarketScreen extends StatefulWidget {
     this.token = '',
     this.permissions = const <String>{},
     this.dashboard,
+    this.currentUserId,
+    this.userPhoneNumber,
   });
 
   final String token;
   final Set<String> permissions;
   final PublicDashboardData? dashboard;
+  final String? currentUserId;
+  final String? userPhoneNumber;
 
   @override
   State<MarketScreen> createState() => _MarketScreenState();
 }
 
 class _MarketScreenState extends State<MarketScreen> {
-  static const int _pageSize = 9;
+  static const int _pageSize = 10;
 
   final ApiService _apiService = ApiService();
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+
   final List<Map<String, dynamic>> _listings = [];
   int _page = 0;
+  int _totalItems = 0;
   bool _hasNext = true;
   bool _isInitialLoading = true;
   bool _isLoadingMore = false;
   String? _errorMessage;
 
-  bool get _canCreateListing => widget.permissions.contains('listings.create');
+  // Filter states
+  _MarketTab _activeTab = _MarketTab.allMarket;
+  String _searchQuery = '';
+  String? _selectedCommodityId;
+  String? _selectedAreaId;
+  String? _selectedAreaName;
+  String _priceRange = 'any'; // any, under-50k, 50k-150k, over-150k
+  String _sortBy = 'recommended'; // recommended, price-asc, price-desc, newest
+
+  List<Map<String, dynamic>> _commodities = [];
+  List<Map<String, dynamic>> _areas = [];
+
+  bool get _isLoggedIn => widget.token.isNotEmpty;
+  bool get _isAdmin =>
+      widget.permissions.contains('users.list') ||
+      widget.permissions.contains('roles.list') ||
+      widget.permissions.contains('listings.delete');
+  bool get _canCreateListing =>
+      widget.permissions.contains('listings.create') || _isLoggedIn;
   bool get _canUpdateListing => widget.permissions.contains('listings.update');
   bool get _canDeleteListing => widget.permissions.contains('listings.delete');
-  bool get _canCreateOrder => widget.permissions.contains('orders.create');
+  bool get _canCreateOrder =>
+      widget.permissions.contains('orders.create') || _isLoggedIn;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_handleScroll);
+    _loadCatalogs();
     _loadInitial();
   }
 
@@ -54,7 +85,39 @@ class _MarketScreenState extends State<MarketScreen> {
     _scrollController
       ..removeListener(_handleScroll)
       ..dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCatalogs() async {
+    try {
+      final results = await Future.wait([
+        _loadCommoditiesList(),
+        _apiService.publicList('/areas'),
+      ]);
+      if (mounted) {
+        setState(() {
+          _commodities = results[0];
+          _areas = results[1];
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<List<Map<String, dynamic>>> _loadCommoditiesList() async {
+    final dashboardCommodities = widget.dashboard?.commodities;
+    if (dashboardCommodities != null && dashboardCommodities.isNotEmpty) {
+      return dashboardCommodities
+          .map(
+            (c) => {
+              'commodity_id': c.id,
+              'name': c.name,
+              'unit': c.unit,
+            },
+          )
+          .toList();
+    }
+    return _apiService.publicList('/commodities');
   }
 
   Future<void> _refresh() async {
@@ -67,6 +130,7 @@ class _MarketScreenState extends State<MarketScreen> {
       _isLoadingMore = false;
       _errorMessage = null;
       _page = 0;
+      _totalItems = 0;
       _hasNext = true;
       _listings.clear();
     });
@@ -89,23 +153,68 @@ class _MarketScreenState extends State<MarketScreen> {
       _errorMessage = null;
     });
 
+    double? minPrice;
+    double? maxPrice;
+    if (_priceRange == 'under-50k') {
+      maxPrice = 49999;
+    } else if (_priceRange == '50k-150k') {
+      minPrice = 50000;
+      maxPrice = 150000;
+    } else if (_priceRange == 'over-150k') {
+      minPrice = 150001;
+    }
+
+    String? ordering;
+    if (_sortBy == 'price-asc') {
+      ordering = 'price';
+    } else if (_sortBy == 'price-desc') {
+      ordering = '-price';
+    } else if (_sortBy == 'newest') {
+      ordering = '-created_at';
+    }
+
+    String? statusFilter;
+    if (_activeTab == _MarketTab.allMarket) {
+      statusFilter = 'available';
+    }
+
     try {
-      final response = await _apiService.paginatedList(
-        path: '/listings',
+      final response = await _apiService.listCommodityListings(
+        commodityId: _selectedCommodityId,
+        areaId: _selectedAreaId,
+        status: statusFilter,
+        minPrice: minPrice,
+        maxPrice: maxPrice,
+        ordering: ordering,
+        search: _searchQuery.trim().isEmpty ? null : _searchQuery.trim(),
         page: page,
         pageSize: _pageSize,
         token: widget.token.isEmpty ? null : widget.token,
       );
+
       if (!mounted) return;
+
+      var items = response.items;
+      // Client-side filter for "myListings" if API doesn't filter by seller
+      if (_activeTab == _MarketTab.myListings && widget.currentUserId != null) {
+        items = items.where((item) {
+          final sellerId = readNested(item, 'seller_id');
+          final sellerUserId = readNested(item, 'seller.user_id');
+          return sellerId == widget.currentUserId ||
+              sellerUserId == widget.currentUserId;
+        }).toList();
+      }
+
       setState(() {
         if (replace) {
           _listings
             ..clear()
-            ..addAll(response.items);
+            ..addAll(items);
         } else {
-          _listings.addAll(response.items);
+          _listings.addAll(items);
         }
         _page = response.page;
+        _totalItems = response.totalItems > 0 ? response.totalItems : _listings.length;
         _hasNext = response.hasNext && response.page < response.totalPages;
         _isInitialLoading = false;
         _isLoadingMore = false;
@@ -114,6 +223,13 @@ class _MarketScreenState extends State<MarketScreen> {
       if (!mounted) return;
       setState(() {
         _errorMessage = error.message;
+        _isInitialLoading = false;
+        _isLoadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Imeshindikana kupakia orodha ya bidhaa.';
         _isInitialLoading = false;
         _isLoadingMore = false;
       });
@@ -128,14 +244,41 @@ class _MarketScreenState extends State<MarketScreen> {
     }
   }
 
+  void _resetFilters() {
+    setState(() {
+      _searchController.clear();
+      _searchQuery = '';
+      _selectedCommodityId = null;
+      _selectedAreaId = null;
+      _selectedAreaName = null;
+      _priceRange = 'any';
+      _sortBy = 'recommended';
+    });
+    _loadInitial();
+  }
+
+  bool get _hasActiveFilters =>
+      _searchQuery.isNotEmpty ||
+      _selectedCommodityId != null ||
+      _selectedAreaId != null ||
+      _priceRange != 'any' ||
+      _sortBy != 'recommended';
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       floatingActionButton: _canCreateListing
           ? FloatingActionButton.extended(
               onPressed: _createListing,
-              icon: const Icon(Icons.add_business_outlined),
-              label: const Text('Weka bidhaa'),
+              backgroundColor: const Color(0xFF0E7A3B),
+              icon: const Icon(Icons.add_business_outlined, color: Colors.white),
+              label: const Text(
+                'Weka Bidhaa',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             )
           : null,
       body: _buildBody(context),
@@ -143,63 +286,563 @@ class _MarketScreenState extends State<MarketScreen> {
   }
 
   Widget _buildBody(BuildContext context) {
-    if (_isInitialLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_errorMessage != null && _listings.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: _refresh,
-        child: _ErrorState(message: _errorMessage!, onRetry: _refresh),
-      );
-    }
-
     return RefreshIndicator(
       onRefresh: _refresh,
-      child: _listings.isEmpty
-          ? ListView(
-              controller: _scrollController,
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
-              children: [
-                SizedBox(height: MediaQuery.sizeOf(context).height * 0.32),
-                const Center(child: Text('Hakuna bidhaa kwa sasa.')),
-              ],
-            )
-          : ListView.separated(
-              controller: _scrollController,
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
-              itemCount: _listings.length + (_isLoadingMore ? 1 : 0),
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (context, index) {
-                if (index >= _listings.length) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
-                }
-                return ListingCard(
-                  listing: _listings[index],
-                  onTap: () => _showListingDetails(_listings[index]),
-                );
-              },
+      child: CustomScrollView(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          // Optional Tabs for authenticated users/admins
+          if (_isLoggedIn)
+            SliverToBoxAdapter(
+              child: Container(
+                color: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                child: Row(
+                  children: [
+                    _buildTabButton(
+                      tab: _MarketTab.allMarket,
+                      label: 'Soko (Marketplace)',
+                      icon: Icons.storefront_outlined,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildTabButton(
+                      tab: _MarketTab.myListings,
+                      label: 'Bidhaa Zangu',
+                      icon: Icons.inventory_outlined,
+                    ),
+                    if (_isAdmin) ...[
+                      const SizedBox(width: 8),
+                      _buildTabButton(
+                        tab: _MarketTab.systemListings,
+                        label: 'Zote (Admin)',
+                        icon: Icons.admin_panel_settings_outlined,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
+
+          // Search & Filter Header
+          SliverToBoxAdapter(
+            child: Container(
+              color: Colors.white,
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Search Bar
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            hintText: 'Tafuta bidhaa au zao...',
+                            prefixIcon: const Icon(Icons.search, size: 20),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear, size: 18),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _searchQuery = '');
+                                      _loadInitial();
+                                    },
+                                  )
+                                : null,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            filled: true,
+                            fillColor: const Color(0xFFF7FAF8),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFFE5EBE7)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFFE5EBE7)),
+                            ),
+                          ),
+                          onSubmitted: (value) {
+                            setState(() => _searchQuery = value);
+                            _loadInitial();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.outlined(
+                        tooltip: 'Chuja / Filters',
+                        icon: Icon(
+                          Icons.tune,
+                          color: _hasActiveFilters
+                              ? const Color(0xFF0E7A3B)
+                              : const Color(0xFF66736B),
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: _hasActiveFilters
+                              ? const Color(0xFFE8F5E9)
+                              : Colors.transparent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: _showFilterModal,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Quick Area Filter Chips
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildQuickAreaChip(
+                          label: 'Tanzania Zote',
+                          areaId: null,
+                          isSelected: _selectedAreaId == null,
+                        ),
+                        const SizedBox(width: 6),
+                        _buildQuickAreaChip(
+                          label: 'Morogoro',
+                          areaId: _findAreaIdByName('Morogoro'),
+                          isSelected: _selectedAreaName == 'Morogoro',
+                        ),
+                        const SizedBox(width: 6),
+                        _buildQuickAreaChip(
+                          label: 'Dar es Salaam',
+                          areaId: _findAreaIdByName('Dar es Salaam'),
+                          isSelected: _selectedAreaName == 'Dar es Salaam',
+                        ),
+                        const SizedBox(width: 6),
+                        _buildQuickAreaChip(
+                          label: 'Mbeya',
+                          areaId: _findAreaIdByName('Mbeya'),
+                          isSelected: _selectedAreaName == 'Mbeya',
+                        ),
+                        const SizedBox(width: 6),
+                        _buildQuickAreaChip(
+                          label: 'Arusha',
+                          areaId: _findAreaIdByName('Arusha'),
+                          isSelected: _selectedAreaName == 'Arusha',
+                        ),
+                        const SizedBox(width: 6),
+                        _buildQuickAreaChip(
+                          label: 'Dodoma',
+                          areaId: _findAreaIdByName('Dodoma'),
+                          isSelected: _selectedAreaName == 'Dodoma',
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Results count & reset
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Bidhaa $_totalItems zimepatikana',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF66736B),
+                          ),
+                        ),
+                        if (_hasActiveFilters)
+                          GestureDetector(
+                            onTap: _resetFilters,
+                            child: const Text(
+                              'Safisha Vichujio',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0E7A3B),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Main Listings List
+          if (_isInitialLoading)
+            const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_errorMessage != null && _listings.isEmpty)
+            SliverFillRemaining(
+              child: _ErrorState(
+                message: _errorMessage!,
+                onRetry: _loadInitial,
+              ),
+            )
+          else if (_listings.isEmpty)
+            SliverFillRemaining(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.shopping_bag_outlined,
+                        size: 64,
+                        color: Color(0xFFB0BEC5),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Hakuna bidhaa zilizopatikana',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF17221B),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Jaribu kubadilisha vigezo vya utafutaji au eneo.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF66736B),
+                        ),
+                      ),
+                      if (_hasActiveFilters) ...[
+                        const SizedBox(height: 16),
+                        OutlinedButton(
+                          onPressed: _resetFilters,
+                          child: const Text('Ondoa Vichujio'),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    if (index >= _listings.length) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    final listing = _listings[index];
+                    final isOwn = _checkIfOwnListing(listing);
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: ListingCard(
+                        listing: listing,
+                        isOwnListing: isOwn,
+                        onTap: () => _showListingDetails(listing),
+                        onBuyNow: isOwn
+                            ? null
+                            : () => _quickBuyListing(listing),
+                      ),
+                    );
+                  },
+                  childCount: _listings.length + (_isLoadingMore ? 1 : 0),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabButton({
+    required _MarketTab tab,
+    required String label,
+    required IconData icon,
+  }) {
+    final isSelected = _activeTab == tab;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          if (_activeTab != tab) {
+            setState(() => _activeTab = tab);
+            _loadInitial();
+          }
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFFE8F5E9) : const Color(0xFFF7FAF8),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected ? const Color(0xFF0E7A3B) : const Color(0xFFE5EBE7),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 15,
+                color: isSelected ? const Color(0xFF0E7A3B) : const Color(0xFF66736B),
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    color: isSelected ? const Color(0xFF0E7A3B) : const Color(0xFF66736B),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickAreaChip({
+    required String label,
+    required String? areaId,
+    required bool isSelected,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedAreaId = areaId;
+          _selectedAreaName = areaId == null ? null : label;
+        });
+        _loadInitial();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF0E7A3B) : const Color(0xFFF0F4F1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : const Color(0xFF17221B),
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  String? _findAreaIdByName(String name) {
+    for (final a in _areas) {
+      if (a['name']?.toString().toLowerCase() == name.toLowerCase()) {
+        return a['area_id']?.toString();
+      }
+    }
+    return null;
+  }
+
+  bool _checkIfOwnListing(Map<String, dynamic> listing) {
+    if (widget.currentUserId == null || widget.currentUserId!.isEmpty) {
+      return false;
+    }
+    final sellerId = readNested(listing, 'seller_id');
+    final sellerUserId = readNested(listing, 'seller.user_id');
+    return sellerId == widget.currentUserId ||
+        sellerUserId == widget.currentUserId;
+  }
+
+  void _showFilterModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            8,
+            20,
+            MediaQuery.of(context).viewInsets.bottom + 28,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Chuja Bidhaa (Filters)',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      setSheetState(() {
+                        _selectedCommodityId = null;
+                        _selectedAreaId = null;
+                        _selectedAreaName = null;
+                        _priceRange = 'any';
+                        _sortBy = 'recommended';
+                      });
+                    },
+                    child: const Text('Rudisha / Reset'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Commodity filter
+              const Text(
+                'Zao (Commodity Type)',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              DropdownButtonFormField<String>(
+                initialValue: _selectedCommodityId,
+                decoration: InputDecoration(
+                  hintText: 'Mazao yote',
+                  prefixIcon: const Icon(Icons.inventory_2_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('Mazao Yote')),
+                  ..._commodities.map(
+                    (c) => DropdownMenuItem(
+                      value: c['commodity_id']?.toString(),
+                      child: Text(c['name']?.toString() ?? ''),
+                    ),
+                  ),
+                ],
+                onChanged: (val) => setSheetState(() => _selectedCommodityId = val),
+              ),
+              const SizedBox(height: 14),
+
+              // Price range filter
+              const Text(
+                'Kiwango cha Bei (TZS)',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              DropdownButtonFormField<String>(
+                initialValue: _priceRange,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.payments_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'any', child: Text('Bei Yoyote')),
+                  DropdownMenuItem(
+                    value: 'under-50k',
+                    child: Text('Chini ya TSh 50,000'),
+                  ),
+                  DropdownMenuItem(
+                    value: '50k-150k',
+                    child: Text('TSh 50,000 - 150,000'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'over-150k',
+                    child: Text('Zaidi ya TSh 150,000'),
+                  ),
+                ],
+                onChanged: (val) => setSheetState(
+                  () => _priceRange = val ?? 'any',
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Sort filter
+              const Text(
+                'Panga Kwa (Sort By)',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              DropdownButtonFormField<String>(
+                initialValue: _sortBy,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.sort_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'recommended',
+                    child: Text('Inayopendekezwa (Recommended)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'newest',
+                    child: Text('Mpya Zaidi (Newest)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'price-asc',
+                    child: Text('Bei: Chini kwenda Juu'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'price-desc',
+                    child: Text('Bei: Juu kwenda Chini'),
+                  ),
+                ],
+                onChanged: (val) => setSheetState(
+                  () => _sortBy = val ?? 'recommended',
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Apply button
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton(
+                  onPressed: () {
+                    Navigator.pop(sheetContext);
+                    setState(() {});
+                    _loadInitial();
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF0E7A3B),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Tumia Vichujio',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
   Future<void> _createListing() async {
-    final changed = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => _ListingFormSheet(
-        dashboard: widget.dashboard,
-        onSubmit: (body) => _apiService.protectedCreate(
-          token: widget.token,
-          path: '/listings',
-          body: body,
-        ),
-      ),
+    final changed = await ListingFormScreen.show(
+      context,
+      token: widget.token,
+      dashboard: widget.dashboard,
     );
     if (changed == true && mounted) {
       _loadInitial();
@@ -213,6 +856,8 @@ class _MarketScreenState extends State<MarketScreen> {
           listing: listing,
           token: widget.token,
           dashboard: widget.dashboard,
+          currentUserId: widget.currentUserId,
+          userPhoneNumber: widget.userPhoneNumber,
           canCreateOrder: _canCreateOrder,
           canUpdateListing: _canUpdateListing,
           canDeleteListing: _canDeleteListing,
@@ -223,224 +868,157 @@ class _MarketScreenState extends State<MarketScreen> {
       _loadInitial();
     }
   }
-}
 
-class _ListingFormSheet extends StatefulWidget {
-  const _ListingFormSheet({
-    required this.onSubmit,
-    this.dashboard,
-    this.listing,
-  });
+  Future<void> _quickBuyListing(Map<String, dynamic> listing) async {
+    if (!_isLoggedIn) {
+      Navigator.pushNamed(context, LoginScreen.routeName);
+      return;
+    }
 
-  final PublicDashboardData? dashboard;
-  final Map<String, dynamic>? listing;
-  final Future<Map<String, dynamic>> Function(Map<String, dynamic> body)
-  onSubmit;
+    final listingId = listing['listing_id']?.toString();
+    if (listingId == null || listingId.isEmpty) return;
 
-  @override
-  State<_ListingFormSheet> createState() => _ListingFormSheetState();
-}
+    final unit = readNested(listing, 'commodity.unit', fallback: 'unit');
+    final priceStr = readNested(listing, 'price');
+    final unitPrice = double.tryParse(priceStr.replaceAll(',', '')) ?? 0;
+    final stockStr = readNested(listing, 'quantity');
+    final stock = double.tryParse(stockStr.replaceAll(',', '')) ?? 0;
 
-class _ListingFormSheetState extends State<_ListingFormSheet> {
-  final ApiService _apiService = ApiService();
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _titleController;
-  late final TextEditingController _descriptionController;
-  late final TextEditingController _priceController;
-  late final TextEditingController _quantityController;
-  late final TextEditingController _imageUrlsController;
-  late Future<List<List<Map<String, dynamic>>>> _optionsFuture;
-  String? _selectedCommodityId;
-  String? _selectedAreaId;
-  String _status = 'active';
-  bool _isSubmitting = false;
+    final quantityController = TextEditingController(text: '1');
 
-  @override
-  void initState() {
-    super.initState();
-    final listing = widget.listing ?? const <String, dynamic>{};
-    _titleController = TextEditingController(
-      text: _readNested(listing, 'title'),
-    );
-    _descriptionController = TextEditingController(
-      text: _readNested(listing, 'description'),
-    );
-    _priceController = TextEditingController(
-      text: _readNested(listing, 'price'),
-    );
-    _quantityController = TextEditingController(
-      text: _readNested(listing, 'quantity'),
-    );
-    final images = listing['images'];
-    _imageUrlsController = TextEditingController(
-      text: images is List
-          ? images
-                .whereType<Map<String, dynamic>>()
-                .map((image) => image['image_url']?.toString() ?? '')
-                .where((url) => url.isNotEmpty)
-                .join(', ')
-          : '',
-    );
-    _selectedCommodityId = _blankToNull(
-      _readNested(listing, 'commodity.commodity_id'),
-    );
-    _selectedAreaId = _blankToNull(_readNested(listing, 'adm_area.area_id'));
-    _status = _readNested(listing, 'status', fallback: 'active');
-    _optionsFuture = Future.wait([
-      _dashboardCommodities(),
-      _apiService.publicList('/areas'),
-    ]);
-  }
+    final placed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final qty = double.tryParse(quantityController.text.trim()) ?? 0;
+          final total = qty * unitPrice;
 
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    _priceController.dispose();
-    _quantityController.dispose();
-    _imageUrlsController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: MediaQuery.of(context).size.height * 0.9,
-      child: FutureBuilder<List<List<Map<String, dynamic>>>>(
-        future: _optionsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return _ErrorState(
-              message: snapshot.error.toString(),
-              onRetry: () async {
-                final future = Future.wait([
-                  _dashboardCommodities(),
-                  _apiService.publicList('/areas'),
-                ]);
-                setState(() => _optionsFuture = future);
-                await future;
-              },
-            );
-          }
-          final commodities =
-              snapshot.data?[0] ?? const <Map<String, dynamic>>[];
-          final areas = snapshot.data?[1] ?? const <Map<String, dynamic>>[];
-          if (_selectedCommodityId == null && commodities.isNotEmpty) {
-            _selectedCommodityId = commodities.first['commodity_id']
-                ?.toString();
-          }
-          if (_selectedAreaId == null && areas.isNotEmpty) {
-            _selectedAreaId = areas.first['area_id']?.toString();
-          }
-          final selectedArea = _selectedAreaId == null
-              ? null
-              : areas
-                    .where(
-                      (area) => area['area_id']?.toString() == _selectedAreaId,
-                    )
-                    .firstOrNull;
-          return Form(
-            key: _formKey,
-            child: ListView(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                8,
-                20,
-                MediaQuery.of(context).viewInsets.bottom + 24,
-              ),
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              8,
+              20,
+              MediaQuery.of(context).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  widget.listing == null ? 'Weka bidhaa' : 'Hariri bidhaa',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                  ),
+                const Text(
+                  'Nunua Sasa (Weka Oda)',
                   textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                _sheetField(_titleController, 'Jina / kichwa'),
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedCommodityId,
-                  decoration: const InputDecoration(labelText: 'Zao'),
-                  items: commodities
-                      .map(
-                        (commodity) => DropdownMenuItem(
-                          value: commodity['commodity_id']?.toString(),
-                          child: Text(commodity['name']?.toString() ?? ''),
-                        ),
-                      )
-                      .toList(),
-                  validator: (value) =>
-                      value == null || value.isEmpty ? 'Required' : null,
-                  onChanged: _isSubmitting
-                      ? null
-                      : (value) => setState(() => _selectedCommodityId = value),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 12),
-                SearchableSelectFormField<Map<String, dynamic>>(
-                  labelText: 'Eneo',
-                  value: selectedArea,
-                  items: areas,
-                  itemLabel: _areaLabel,
-                  itemSubtitle: _areaSubtitle,
-                  leadingIcon: Icons.map_outlined,
-                  enabled: !_isSubmitting,
-                  searchHintText: 'Tafuta eneo...',
-                  emptyText: 'Hakuna maeneo.',
-                  validator: (value) => value == null ? 'Required' : null,
-                  onChanged: (value) => setState(
-                    () => _selectedAreaId = value?['area_id']?.toString(),
+                Text(
+                  listingTitle(listing),
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Bei: TSh ${_formatPrice(unitPrice.toString())} / $unit • Upeo: $stock $unit',
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF66736B)),
+                ),
+                const SizedBox(height: 16),
+
+                // Quantity Input
+                TextFormField(
+                  controller: quantityController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: 'Kiasi cha kuagiza ($unit)',
+                    prefixIcon: const Icon(Icons.scale_outlined),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onChanged: (_) => setSheetState(() {}),
+                ),
+                const SizedBox(height: 12),
+
+                // Total display
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Jumla ya Malipo:',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                      Text(
+                        'TSh ${_formatPrice(total.toString())}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF0E7A3B),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                _sheetField(
-                  _descriptionController,
-                  'Maelezo',
-                  required: false,
-                  maxLines: 3,
-                ),
-                _sheetField(
-                  _priceController,
-                  'Bei',
-                  keyboardType: TextInputType.number,
-                ),
-                _sheetField(
-                  _quantityController,
-                  'Kiasi',
-                  required: false,
-                  keyboardType: TextInputType.number,
-                ),
-                DropdownButtonFormField<String>(
-                  initialValue: _status,
-                  decoration: const InputDecoration(labelText: 'Hali'),
-                  items: const [
-                    DropdownMenuItem(value: 'active', child: Text('active')),
-                    DropdownMenuItem(
-                      value: 'inactive',
-                      child: Text('inactive'),
-                    ),
-                    DropdownMenuItem(value: 'sold', child: Text('sold')),
-                  ],
-                  onChanged: _isSubmitting
+                const SizedBox(height: 18),
+
+                FilledButton.icon(
+                  onPressed: qty <= 0 || qty > stock
                       ? null
-                      : (value) => setState(() => _status = value ?? _status),
-                ),
-                const SizedBox(height: 12),
-                _sheetField(
-                  _imageUrlsController,
-                  'Image URLs',
-                  required: false,
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: FilledButton(
-                    onPressed: _isSubmitting ? null : _submit,
-                    child: Text(_isSubmitting ? 'Saving...' : 'Save'),
+                      : () async {
+                          try {
+                            final response = await _apiService.createOrder(
+                              token: widget.token,
+                              listingId: listingId,
+                              quantity: quantityController.text.trim(),
+                            );
+                            final orderId = response['order_id']?.toString() ??
+                                (response['order'] is Map<String, dynamic>
+                                    ? response['order']['order_id']?.toString()
+                                    : null);
+                            if (orderId == null || orderId.isEmpty) {
+                              throw ApiException('Oda imewekwa lakini taarifa hazijapatikana.');
+                            }
+
+                            if (!sheetContext.mounted) return;
+                            Navigator.pop(sheetContext, true);
+
+                            // Open payment sheet
+                            await OrderPaymentSheet.show(
+                              context,
+                              token: widget.token,
+                              orderId: orderId,
+                              totalAmount: total.toString(),
+                              initialPhoneNumber: widget.userPhoneNumber,
+                              listingTitle: listingTitle(listing),
+                            );
+                          } on ApiException catch (error) {
+                            if (!sheetContext.mounted) return;
+                            ScaffoldMessenger.of(sheetContext).showSnackBar(
+                              SnackBar(
+                                content: Text(error.message),
+                                backgroundColor: Colors.redAccent,
+                              ),
+                            );
+                          }
+                        },
+                  icon: const Icon(Icons.shopping_cart_checkout_outlined),
+                  label: const Text(
+                    'Endelea na Malipo',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF0E7A3B),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ],
@@ -449,174 +1027,10 @@ class _ListingFormSheetState extends State<_ListingFormSheet> {
         },
       ),
     );
-  }
 
-  Future<List<Map<String, dynamic>>> _dashboardCommodities() async {
-    final dashboardCommodities = widget.dashboard?.commodities;
-    if (dashboardCommodities != null && dashboardCommodities.isNotEmpty) {
-      return dashboardCommodities
-          .map(
-            (commodity) => {
-              'commodity_id': commodity.id,
-              'name': commodity.name,
-              'unit': commodity.unit,
-            },
-          )
-          .toList();
+    if (placed == true && mounted) {
+      _loadInitial();
     }
-    return _apiService.publicList('/commodities');
-  }
-
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _isSubmitting = true);
-    final body = <String, dynamic>{
-      'commodity_id': _selectedCommodityId,
-      'adm_area_id': _selectedAreaId,
-      'title': _titleController.text.trim(),
-      'description': _descriptionController.text.trim(),
-      'price': _priceController.text.trim(),
-      'status': _status,
-      'image_urls': _imageUrlsController.text
-          .split(',')
-          .map((url) => url.trim())
-          .where((url) => url.isNotEmpty)
-          .toList(),
-    };
-    _addIfNotBlank(body, 'quantity', _quantityController.text);
-    try {
-      await widget.onSubmit(body);
-      if (mounted) Navigator.pop(context, true);
-    } on ApiException catch (error) {
-      if (!mounted) return;
-      setState(() => _isSubmitting = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.message)));
-    }
-  }
-}
-
-class _OrderFromListingSheet extends StatefulWidget {
-  const _OrderFromListingSheet({required this.listing, required this.onSubmit});
-
-  final Map<String, dynamic> listing;
-  final Future<Map<String, dynamic>> Function(Map<String, dynamic> body)
-  onSubmit;
-
-  @override
-  State<_OrderFromListingSheet> createState() => _OrderFromListingSheetState();
-}
-
-class _OrderFromListingSheetState extends State<_OrderFromListingSheet> {
-  final _formKey = GlobalKey<FormState>();
-  final TextEditingController _quantityController = TextEditingController();
-  bool _isSubmitting = false;
-
-  @override
-  void dispose() {
-    _quantityController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Form(
-        key: _formKey,
-        child: ListView(
-          shrinkWrap: true,
-          padding: EdgeInsets.fromLTRB(
-            20,
-            8,
-            20,
-            MediaQuery.of(context).viewInsets.bottom + 24,
-          ),
-          children: [
-            const Text(
-              'Weka oda',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            _InfoTile(label: 'Bidhaa', value: listingTitle(widget.listing)),
-            _InfoTile(
-              label: 'Bei',
-              value:
-                  'TSh ${_readNested(widget.listing, 'price', fallback: '-')}',
-            ),
-            const SizedBox(height: 12),
-            _sheetField(
-              _quantityController,
-              'Kiasi cha kununua',
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 50,
-              child: FilledButton.icon(
-                onPressed: _isSubmitting ? null : _submit,
-                icon: const Icon(Icons.add_shopping_cart_outlined),
-                label: Text(_isSubmitting ? 'Saving...' : 'Place order'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-    final listingId = widget.listing['listing_id']?.toString();
-    if (listingId == null || listingId.isEmpty) return;
-    setState(() => _isSubmitting = true);
-    try {
-      await widget.onSubmit({
-        'listing_id': listingId,
-        'quantity': _quantityController.text.trim(),
-      });
-      if (mounted) Navigator.pop(context, true);
-    } on ApiException catch (error) {
-      if (!mounted) return;
-      setState(() => _isSubmitting = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.message)));
-    }
-  }
-}
-
-class _ImageStrip extends StatelessWidget {
-  const _ImageStrip({required this.images});
-
-  final List<String> images;
-
-  @override
-  Widget build(BuildContext context) {
-    if (images.isEmpty) {
-      return AppAvatar(
-        width: double.infinity,
-        height: 190,
-        borderRadius: BorderRadius.circular(14),
-        icon: Icons.eco_outlined,
-      );
-    }
-    return SizedBox(
-      height: 190,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: images.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (context, index) => AppAvatar(
-          imageUrl: images[index],
-          width: MediaQuery.sizeOf(context).width * 0.78,
-          height: 190,
-          borderRadius: BorderRadius.circular(14),
-          icon: Icons.eco_outlined,
-        ),
-      ),
-    );
   }
 }
 
@@ -628,40 +1042,32 @@ class _SellerHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sellerName = sellerDisplay(listing);
-    final phone = _readNested(listing, 'seller.phone_number');
-    final email = _readNested(listing, 'seller.email');
+    final phone = readNested(listing, 'seller.phone_number');
+    final email = readNested(listing, 'seller.email');
 
     return Row(
       children: [
         AppAvatar(
-          imageUrl: _readNested(listing, 'seller.avatar_url'),
+          imageUrl: readNested(listing, 'seller.avatar_url'),
           initials: _sellerInitials(sellerName),
           icon: Icons.person_outline,
-          size: 64,
-          borderRadius: BorderRadius.circular(8),
+          size: 56,
+          borderRadius: BorderRadius.circular(10),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.person_outline,
-                    size: 16,
-                    color: Color(0xFF17221B),
-                  ),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text(
-                      sellerName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                ],
+              Text(
+                sellerName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  color: Color(0xFF17221B),
+                ),
               ),
               if (phone.isNotEmpty) ...[
                 const SizedBox(height: 4),
@@ -740,84 +1146,6 @@ class _SellerContactLine extends StatelessWidget {
   }
 }
 
-class _DetailLine extends StatelessWidget {
-  const _DetailLine({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: const Color(0xFF0E7A3B)),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text)),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoLabel extends StatelessWidget {
-  const _InfoLabel({required this.icon, required this.value});
-
-  final IconData icon;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 24),
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7FAF8),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFFE5EBE7)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: const Color(0xFF0E7A3B)),
-          const SizedBox(width: 4),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 180),
-            child: Text(
-              value.isEmpty ? '-' : value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFF17221B),
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoTile extends StatelessWidget {
-  const _InfoTile({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      title: Text(label),
-      subtitle: Text(value.isEmpty ? '-' : value),
-    );
-  }
-}
-
 class _ErrorState extends StatelessWidget {
   const _ErrorState({required this.message, required this.onRetry});
 
@@ -830,7 +1158,7 @@ class _ErrorState extends StatelessWidget {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(24),
       children: [
-        SizedBox(height: MediaQuery.sizeOf(context).height * 0.28),
+        SizedBox(height: MediaQuery.sizeOf(context).height * 0.25),
         Text(message, textAlign: TextAlign.center),
         const SizedBox(height: 16),
         Center(
@@ -845,143 +1173,31 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
-Widget _sheetField(
-  TextEditingController controller,
-  String label, {
-  bool enabled = true,
-  bool required = true,
-  int maxLines = 1,
-  TextInputType? keyboardType,
-}) {
-  return Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: TextFormField(
-      controller: controller,
-      enabled: enabled,
-      maxLines: maxLines,
-      keyboardType: keyboardType,
-      decoration: InputDecoration(labelText: label),
-      validator: required
-          ? (value) => value == null || value.trim().isEmpty ? 'Required' : null
-          : null,
-    ),
-  );
-}
-
-String _areaLabel(Map<String, dynamic> area) {
-  final path = area['path']?.toString();
-  if (path != null && path.trim().isNotEmpty) {
-    return path;
-  }
-  return area['name']?.toString() ?? 'Eneo';
-}
-
-String _areaSubtitle(Map<String, dynamic> area) {
-  return area['level']?.toString() ?? '';
-}
-
 String _sellerInitials(String name) {
   final parts = name
       .trim()
       .split(RegExp(r'\s+'))
       .where((part) => part.isNotEmpty)
       .toList();
-  if (parts.isEmpty) {
-    return '';
-  }
-  if (parts.length == 1) {
-    return parts.first.characters.first;
-  }
+  if (parts.isEmpty) return '';
+  if (parts.length == 1) return parts.first.characters.first;
   return '${parts.first.characters.first}${parts.last.characters.first}';
 }
 
 String _relativeTime(String rawDate) {
   final date = DateTime.tryParse(rawDate);
-  if (date == null) {
-    return '-';
-  }
+  if (date == null) return '-';
   final postedAt = date.isUtc ? date.toLocal() : date;
   final difference = DateTime.now().difference(postedAt);
-  if (difference.inSeconds < 60) {
-    return 'now';
-  }
-  if (difference.inMinutes < 60) {
-    return '${difference.inMinutes}m';
-  }
-  if (difference.inHours < 24) {
-    return '${difference.inHours}h';
-  }
-  if (difference.inDays < 7) {
-    return '${difference.inDays}d';
-  }
-  if (difference.inDays < 30) {
-    return '${difference.inDays ~/ 7}w';
-  }
-  if (difference.inDays < 365) {
-    return '${difference.inDays ~/ 30}mo';
-  }
-  return '${difference.inDays ~/ 365}y';
+  if (difference.inSeconds < 60) return 'sasa hivi';
+  if (difference.inMinutes < 60) return 'dakika ${difference.inMinutes} zilizopita';
+  if (difference.inHours < 24) return 'masaa ${difference.inHours} yaliyopita';
+  if (difference.inDays < 7) return 'siku ${difference.inDays} zilizopita';
+  if (difference.inDays < 30) return 'wiki ${difference.inDays ~/ 7} zilizopita';
+  if (difference.inDays < 365) return 'miezi ${difference.inDays ~/ 30} iliyopita';
+  return 'mwaka ${difference.inDays ~/ 365} uliopita';
 }
 
 String _relativeTimeAgo(String rawDate) {
-  final relative = _relativeTime(rawDate);
-  if (relative == '-' || relative == 'now') {
-    return relative;
-  }
-  return '$relative ago';
-}
-
-String _pricePerUnit(Map<String, dynamic> listing) {
-  final price = _readNested(listing, 'price', fallback: '-');
-  final unit = _readNested(listing, 'commodity.unit');
-  if (unit.isEmpty) {
-    return 'TSh $price';
-  }
-  return 'TSh $price / $unit';
-}
-
-String _commodityCategoryLabel(Map<String, dynamic> listing) {
-  final commodity = listing['commodity'];
-  if (commodity is Map<String, dynamic>) {
-    final categories = commodity['categories'];
-    if (categories is List) {
-      final names = categories
-          .whereType<Map<String, dynamic>>()
-          .map((category) => category['name']?.toString().trim() ?? '')
-          .where((name) => name.isNotEmpty)
-          .toList();
-      if (names.isNotEmpty) {
-        return names.join(', ');
-      }
-    }
-  }
-  return _readNested(listing, 'commodity.name', fallback: '-');
-}
-
-String _readNested(
-  Map<String, dynamic> source,
-  String path, {
-  String fallback = '',
-}) {
-  dynamic value = source;
-  for (final segment in path.split('.')) {
-    if (value is Map<String, dynamic>) {
-      value = value[segment];
-    } else {
-      return fallback;
-    }
-  }
-  final text = value?.toString().trim() ?? '';
-  return text.isEmpty ? fallback : text;
-}
-
-String? _blankToNull(String value) {
-  return value.trim().isEmpty ? null : value;
-}
-
-void _addIfNotBlank(Map<String, dynamic> body, String key, String value) {
-  final trimmed = value.trim();
-  if (trimmed.isNotEmpty) {
-    body[key] = trimmed;
-  }
+  return _relativeTime(rawDate);
 }

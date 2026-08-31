@@ -4,10 +4,18 @@ import '../config/api_config.dart';
 import 'app_avatar.dart';
 
 class ListingCard extends StatelessWidget {
-  const ListingCard({super.key, required this.listing, required this.onTap});
+  const ListingCard({
+    super.key,
+    required this.listing,
+    required this.onTap,
+    this.onBuyNow,
+    this.isOwnListing = false,
+  });
 
   final Map<String, dynamic> listing;
   final VoidCallback onTap;
+  final VoidCallback? onBuyNow;
+  final bool isOwnListing;
 
   static const _green = Color(0xFF16803C);
   static const _darkGreen = Color(0xFF0D5C2A);
@@ -129,7 +137,7 @@ class ListingCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          _StatusBadge(status: status),
+                          ListingStatusBadge(status: status),
                         ],
                       ),
 
@@ -256,6 +264,64 @@ class ListingCard extends StatelessWidget {
                           ),
                         ],
                       ),
+
+                      if (onBuyNow != null || isOwnListing) ...[
+                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            if (isOwnListing)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE8F5E9),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: const Color(0xFFC8E6C9),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Bidhaa Yako',
+                                  style: TextStyle(
+                                    color: _green,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              )
+                            else if (onBuyNow != null)
+                              SizedBox(
+                                height: 32,
+                                child: FilledButton.icon(
+                                  onPressed: onBuyNow,
+                                  icon: const Icon(
+                                    Icons.shopping_cart_checkout_outlined,
+                                    size: 14,
+                                  ),
+                                  label: const Text(
+                                    'Nunua Sasa',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: _green,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -291,8 +357,8 @@ class ListingCard extends StatelessWidget {
   }
 }
 
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.status});
+class ListingStatusBadge extends StatelessWidget {
+  const ListingStatusBadge({super.key, required this.status});
 
   final String status;
 
